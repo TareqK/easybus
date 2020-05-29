@@ -5,6 +5,7 @@
  */
 package me.kisoft.easybus;
 
+import java.lang.reflect.Method;
 import java.util.logging.Level;
 import lombok.extern.java.Log;
 import org.apache.commons.lang3.StringUtils;
@@ -22,34 +23,42 @@ public class EventHandler {
      * @return a string with the event name
      */
     private String getEventClassName() {
-        return this.handler.getClass().getAnnotation(Handles.class).value().getCanonicalName();
+        if (eventClassName == null) {
+            eventClassName = this.handler.getClass().getAnnotation(Handles.class).value().getCanonicalName();
+        }
+        return eventClassName;
     }
 
     private final Object handler;
+    private Method handlerMethod;
+    private String eventClassName;
 
     EventHandler(Object handler) {
         this.handler = handler;
     }
 
     /**
-     * Handles the event if it matches the name of the event
+     * Handles the event if it matches the type of the event
      *
      * @param event the event to handle
      * @throws Exception
      */
     private void doHandle(Object event) throws Exception {
-        this.handler.getClass().getMethod("handle", event.getClass()).invoke(this.handler, event);
+        if (handlerMethod == null) {
+            this.handlerMethod = this.handler.getClass().getMethod("handle", event.getClass());
+        }
+        this.handlerMethod.invoke(this.handler, event);
     }
 
     /**
-     * handles an event by matching its name
+     * handles an event by matching its type to a handler
      *
      * @param event the event to handle
      * @throws Throwable
      */
     public final void handleEvent(Object event) {
         if (event != null) {
-            log.log(Level.INFO, "Event Thrown : {0}", event.getClass().getCanonicalName());
+            log.log(Level.FINE, "Event Thrown : {0}", event.getClass().getCanonicalName());
             try {
                 if (StringUtils.equals(this.getEventClassName(), event.getClass().getCanonicalName())) {
                     doHandle(event);

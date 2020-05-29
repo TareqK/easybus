@@ -19,17 +19,9 @@ import org.reflections.Reflections;
 @Log
 public class EventBus {
 
-    private static EventBus instance = getInstance();
     private final List<EventHandler> handlers = new ArrayList<>();
-    
-    private EventBus() {
-    }
 
-    public static final EventBus getInstance() {
-        if (instance == null) {
-            instance = new EventBus();
-        }
-        return instance;
+    public EventBus() {
     }
 
     /**
@@ -41,36 +33,50 @@ public class EventBus {
 
     /**
      * Posts an event to the domain bus
-     * @param event  the event to post
+     *
+     * @param event the event to post
      */
     public void post(Object event) {
-        handlers.stream().forEach(handler ->{
+        handlers.stream().forEach(handler -> {
             handler.handleEvent(event);
         });
     }
 
-    
-    public final void subscribeHandlers(Reflections r) {
-        System.out.println(r.getTypesAnnotatedWith(Handles.class));
+    public final EventBus search(String name) {
+        return search(new Reflections(name));
+    }
+
+    public final EventBus search(Class clazz) {
+        return search(new Reflections(clazz));
+    }
+
+    public final EventBus search(ClassLoader loader) {
+        return search(new Reflections(loader));
+    }
+
+    public final EventBus search(Reflections r) {
         for (Class clazz : r.getTypesAnnotatedWith(Handles.class)) {
             try {
                 Object o = clazz.getConstructor().newInstance();
-                EventBus.getInstance().subscribe(new EventHandler(o));
+                this.addHandler(new EventHandler(o));
                 log.log(Level.INFO, "Added Event Handler {0}", clazz.getSimpleName());
             } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
                 log.log(Level.SEVERE, null, ex);
             }
         }
+        return this;
     }
+
     /**
      * Add a handler to the event bus
-     * @param handler  the handler to add
+     *
+     * @param handler the handler to add
      */
-    public void subscribe(EventHandler handler) {
-       handlers.add(handler);
+    public void addHandler(EventHandler handler) {
+        handlers.add(handler);
     }
-    
-    public void removeHandler(EventHandler handler){
+
+    public void removeHandler(EventHandler handler) {
         handlers.remove(handler);
     }
 }

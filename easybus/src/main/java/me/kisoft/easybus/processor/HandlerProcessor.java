@@ -23,7 +23,6 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.MirroredTypeException;
 import javax.lang.model.type.TypeMirror;
-import me.kisoft.easybus.Event;
 import me.kisoft.easybus.Handles;
 import org.apache.commons.lang3.StringUtils;
 
@@ -57,23 +56,25 @@ public class HandlerProcessor extends AbstractProcessor {
 
     private TypeMirror getEventClass(Handles handles) {
         try {
-            handles.value(); 
+            handles.value();
         } catch (MirroredTypeException mte) {
             return mte.getTypeMirror();
         }
-        return null; 
+        return null;
     }
 
     private void checkForHandlers(TypeElement typeElement) {
         List<ExecutableElement> methods
                 = ElementFilter.methodsIn(typeElement.getEnclosedElements());
         if (!methods.stream().anyMatch(
-                m -> m.getParameters().size() == 1
+                m -> StringUtils.equals("handle", m.getSimpleName())
+                && m.getParameters().size() == 1
                 && StringUtils.equals(getEventClass(typeElement.getAnnotation(Handles.class
                 )).toString(), m.getParameters().get(0).asType().toString()))) {
             processingEnv.getMessager()
                     .printMessage(Diagnostic.Kind.ERROR,
-                            "Error in Class : +" + typeElement + " : handle method for Specified Event type not defined");
+                            "Error in Class : +" + typeElement + " : 'handle' method for Specified Event type  " + getEventClass(typeElement.getAnnotation(Handles.class
+                            )).toString() + " not defined");
         }
     }
 
