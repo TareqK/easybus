@@ -6,9 +6,7 @@
 package me.kisoft.easybus;
 
 import java.lang.reflect.Method;
-import java.util.logging.Level;
 import lombok.extern.java.Log;
-import org.apache.commons.lang3.StringUtils;
 
 /**
  *
@@ -22,9 +20,9 @@ public class EventHandler {
      *
      * @return a string with the event name
      */
-    private String getEventClassName() {
+    String getEventClassName() {
         if (eventClassName == null) {
-            eventClassName = this.handler.getClass().getAnnotation(Handles.class).value().getCanonicalName();
+            eventClassName = this.handler.getClass().getAnnotation(Handle.class).value().getCanonicalName();
         }
         return eventClassName;
     }
@@ -34,20 +32,10 @@ public class EventHandler {
     private String eventClassName;
 
     EventHandler(Object handler) {
-        this.handler = handler;
-    }
-
-    /**
-     * Handles the event if it matches the type of the event
-     *
-     * @param event the event to handle
-     * @throws Exception
-     */
-    private void doHandle(Object event) throws Exception {
-        if (handlerMethod == null) {
-            this.handlerMethod = this.handler.getClass().getMethod("handle", event.getClass());
+        if (handler.getClass().getAnnotation(Handle.class) == null) {
+            throw new IllegalArgumentException("Handlers Must have the @Handle annotation");
         }
-        this.handlerMethod.invoke(this.handler, event);
+        this.handler = handler;
     }
 
     /**
@@ -56,17 +44,20 @@ public class EventHandler {
      * @param event the event to handle
      * @throws Throwable
      */
-    public final void handleEvent(Object event) {
-        if (event != null) {
-            log.log(Level.FINE, "Event Thrown : {0}", event.getClass().getCanonicalName());
-            try {
-                if (StringUtils.equals(this.getEventClassName(), event.getClass().getCanonicalName())) {
-                    doHandle(event);
-                }
-            } catch (Exception ex) {
-                log.severe(ex.getMessage());
+    final void handle(Object event) {
+        try {
+            if (handlerMethod == null) {
+                this.handlerMethod = this.handler.getClass().getMethod("handle", event.getClass());
             }
+            this.handlerMethod.invoke(this.handler, event);
+        } catch (Throwable ex) {
+            log.severe(ex.getMessage());
         }
+
+    }
+
+    boolean isAsync() {
+        return this.handler.getClass().getAnnotation(Handle.class).async();
     }
 
 }

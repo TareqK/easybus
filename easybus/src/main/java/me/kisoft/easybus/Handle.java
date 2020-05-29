@@ -16,7 +16,16 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-public @interface Handles {
+public @interface Handle {
 
+    /**
+     * The class of the event that this handler handles
+     * @return the class of the event that this handler handles
+     */
     public Class  value();
+    /**
+     * Whether or not this handler is async
+     * @return whether or not this handler is async
+     */
+    public boolean async() default false;
 }

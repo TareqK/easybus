@@ -23,38 +23,51 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.MirroredTypeException;
 import javax.lang.model.type.TypeMirror;
-import me.kisoft.easybus.Handles;
 import org.apache.commons.lang3.StringUtils;
+import me.kisoft.easybus.Handle;
 
 @SupportedAnnotationTypes("*")
 @AutoService(Processor.class)
 public class HandlerProcessor extends AbstractProcessor {
 
+    private static final String NO_EVENT_CLASS_ERROR = "Error in Class : %s : No Event Class Specified.";
+    private static final String EVENT_CLASS_NOT_ANNOTATED = "Error in Class : %s : Event Class Not annotated with @Event";
+    private static final String NO_METHOD_DEFINED_ERROR = "Error in Class : %s : 'handle' method for Specified Event type  %s not defined";
+
     @Override
-    public boolean process(Set<? extends TypeElement> annotations,
-            RoundEnvironment roundEnv) {
+    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         ElementFilter.typesIn(roundEnv.getRootElements())
                 .stream()
                 .filter(this::hasHandlerAnnotation)
                 .forEach(typeElement -> {
-                    checkForHandlers(typeElement);
                     checkForEventClass(typeElement);
+                    checkForHandlerMethod(typeElement);
                 });
         return false;
     }
 
+    /**
+     * Checks if the target event class was specified and that it is annotated
+     * with @Evebt
+     *
+     * @param typeElement the element to check
+     */
     private void checkForEventClass(TypeElement typeElement) {
-        if (getEventClass(typeElement.getAnnotation(Handles.class)) == null) {
-            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                    "Error in Class : +" + typeElement + " : No Event Class Specified.");
+        if (getEventClass(typeElement.getAnnotation(Handle.class)) == null) {
+            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, String.format(NO_EVENT_CLASS_ERROR, typeElement));
         }
-        if (getEventClass(typeElement.getAnnotation(Handles.class)) != null) {
-            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                    "Error in Class : +" + typeElement + " : Event Class Not annotated with @Event");
+        if (getEventClass(typeElement.getAnnotation(Handle.class)) != null) {
+            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, String.format(EVENT_CLASS_NOT_ANNOTATED, typeElement));
         }
     }
 
-    private TypeMirror getEventClass(Handles handles) {
+    /**
+     * Gets the Class of the event to handle
+     *
+     * @param handles the handle annotation
+     * @return a TypeMirror of the event class if found, null otherwise
+     */
+    private TypeMirror getEventClass(Handle handles) {
         try {
             handles.value();
         } catch (MirroredTypeException mte) {
@@ -63,23 +76,25 @@ public class HandlerProcessor extends AbstractProcessor {
         return null;
     }
 
-    private void checkForHandlers(TypeElement typeElement) {
+    /**
+     * Checks if a method of name handle with a single paramter for the event
+     * handler class
+     *
+     * @param typeElement the element to check
+     */
+    private void checkForHandlerMethod(TypeElement typeElement) {
         List<ExecutableElement> methods
                 = ElementFilter.methodsIn(typeElement.getEnclosedElements());
-        if (!methods.stream().anyMatch(
-                m -> StringUtils.equals("handle", m.getSimpleName())
+        if (!methods.stream().anyMatch(m -> StringUtils.equals("handle", m.getSimpleName())
                 && m.getParameters().size() == 1
-                && StringUtils.equals(getEventClass(typeElement.getAnnotation(Handles.class
+                && StringUtils.equals(getEventClass(typeElement.getAnnotation(Handle.class
                 )).toString(), m.getParameters().get(0).asType().toString()))) {
-            processingEnv.getMessager()
-                    .printMessage(Diagnostic.Kind.ERROR,
-                            "Error in Class : +" + typeElement + " : 'handle' method for Specified Event type  " + getEventClass(typeElement.getAnnotation(Handles.class
-                            )).toString() + " not defined");
+            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, String.format(NO_METHOD_DEFINED_ERROR, typeElement, getEventClass(typeElement.getAnnotation(Handle.class)).toString()));
         }
     }
 
     private boolean hasHandlerAnnotation(TypeElement typeElement) {
-        Handles handles = typeElement.getAnnotation(Handles.class
+        Handle handles = typeElement.getAnnotation(Handle.class
         );
         return handles != null;
     }
