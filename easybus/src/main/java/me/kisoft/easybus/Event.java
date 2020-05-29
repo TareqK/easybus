@@ -12,13 +12,12 @@ import java.lang.annotation.Target;
 
 
 /**
- *
+ * An annotation that represents that the class is supposed to be an event
  * @author tareq
+ * 
  */
-
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface Event {
-    
-    
+        
 }

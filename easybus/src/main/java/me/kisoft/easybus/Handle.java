@@ -11,7 +11,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- *
+ * An annotation that specifies that this class is an event handler, and what event class it handles
  * @author tareq
  */
 @Retention(RetentionPolicy.RUNTIME)
@@ -22,7 +22,7 @@ public @interface Handle {
      * The class of the event that this handler handles
      * @return the class of the event that this handler handles
      */
-    public Class  value();
+    public Class<?> event();
     /**
      * Whether or not this handler is async
      * @return whether or not this handler is async

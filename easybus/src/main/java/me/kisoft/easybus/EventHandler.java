@@ -15,6 +15,10 @@ import lombok.extern.java.Log;
 @Log
 public class EventHandler {
 
+    private final Object handler;
+    private Method handlerMethod;
+    private String eventClassName;
+
     /**
      * Gets the name of the event this handler is responsible for
      *
@@ -22,14 +26,10 @@ public class EventHandler {
      */
     String getEventClassName() {
         if (eventClassName == null) {
-            eventClassName = this.handler.getClass().getAnnotation(Handle.class).value().getCanonicalName();
+            eventClassName = this.handler.getClass().getAnnotation(Handle.class).event().getCanonicalName();
         }
         return eventClassName;
     }
-
-    private final Object handler;
-    private Method handlerMethod;
-    private String eventClassName;
 
     EventHandler(Object handler) {
         if (handler.getClass().getAnnotation(Handle.class) == null) {
@@ -56,6 +56,12 @@ public class EventHandler {
 
     }
 
+    /**
+     * Is this event supposed to be handled in a synchronous or asynchronous
+     * way?
+     *
+     * @return if the event should be handled async or sync
+     */
     boolean isAsync() {
         return this.handler.getClass().getAnnotation(Handle.class).async();
     }
