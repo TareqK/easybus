@@ -20,8 +20,8 @@
         <javadoc.plugin.version>3.1.1</javadoc.plugin.version>
     </properties>
     
-    <name>Jesse</name>
-    <description>Java Enterprise Server Side Events</description>
+    <name>Easybus</name>
+    <description>Simple, No Frills Event Bus for Java</description>
     <url>http://github.com/TareqK/easybus</url>
 
     <licenses>
