@@ -19,6 +19,32 @@
         <source.plugin.version>2.2.1</source.plugin.version>
         <javadoc.plugin.version>3.1.1</javadoc.plugin.version>
     </properties>
+    
+    <name>Jesse</name>
+    <description>Java Enterprise Server Side Events</description>
+    <url>http://github.com/TareqK/easybus</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>TareqK</id>
+            <name>Tareq Kirresh</name>
+            <email>kirreshtareq@gmail.com</email>
+            <roles>
+                <role>maintainer</role>
+            </roles>
+        </developer>
+    </developers>
+    <scm>
+        <url>http://github.com/TareqK/easybus</url>
+    </scm>
     <dependencies>
         <dependency>
             <groupId>org.reflections</groupId>
