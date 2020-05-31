@@ -6,6 +6,7 @@
 package me.kisoft.easybus;
 
 import java.lang.reflect.Method;
+import lombok.Getter;
 import lombok.extern.java.Log;
 
 /**
@@ -15,27 +16,40 @@ import lombok.extern.java.Log;
 @Log
 public class EventHandler {
 
+    private static final String NO_ANNOTATION = "Handler of type %s Must have the @Handle annotation";
+    private static final String NO_METHOD = "Handler of type %s Must have the public method 'handle' with parameter type %s";
+    private static final String NO_CLASS = "Handler of type %s is missing the target event class";
+    @Getter
     private final Object handler;
+    @Getter
     private Method handlerMethod;
+    @Getter
     private String eventClassName;
+    @Getter
+    private boolean async = false;
 
-    /**
-     * Gets the name of the event this handler is responsible for
-     *
-     * @return a string with the event name
-     */
-    String getEventClassName() {
-        if (eventClassName == null) {
-            eventClassName = this.handler.getClass().getAnnotation(Handle.class).event().getCanonicalName();
-        }
-        return eventClassName;
+    EventHandler(Object handler) throws NoSuchMethodException,SecurityException  {// These should be impossible to throw, we use compile time checking
+        this.handler = handler;
+        findTargetClass(handler);
+        findHandleMethod(handler);
+        findIsAsync(handler);
+
     }
 
-    EventHandler(Object handler) {
-        if (handler.getClass().getAnnotation(Handle.class) == null) {
-            throw new IllegalArgumentException("Handlers Must have the @Handle annotation");
-        }
-        this.handler = handler;
+    private void findTargetClass(Object handler) {
+        Class foundClass = handler.getClass().getAnnotation(Handle.class).event();
+        this.eventClassName = foundClass.getCanonicalName();
+
+    }
+
+    private void findHandleMethod(Object handler) throws  NoSuchMethodException,SecurityException {// These should be impossible to throw, we use compile time checking
+        Method foundMethod = handler.getClass().getMethod("handle", handler.getClass().getAnnotation(Handle.class).event());
+        this.handlerMethod = foundMethod;
+
+    }
+
+    private void findIsAsync(Object handler) {
+        this.async = handler.getClass().getAnnotation(Handle.class).async();
     }
 
     /**
@@ -46,24 +60,11 @@ public class EventHandler {
      */
     final void handle(Object event) {
         try {
-            if (handlerMethod == null) {
-                this.handlerMethod = this.handler.getClass().getMethod("handle", event.getClass());
-            }
             this.handlerMethod.invoke(this.handler, event);
         } catch (Throwable ex) {
             log.severe(ex.getMessage());
         }
 
-    }
-
-    /**
-     * Is this event supposed to be handled in a synchronous or asynchronous
-     * way?
-     *
-     * @return if the event should be handled async or sync
-     */
-    boolean isAsync() {
-        return this.handler.getClass().getAnnotation(Handle.class).async();
     }
 
 }

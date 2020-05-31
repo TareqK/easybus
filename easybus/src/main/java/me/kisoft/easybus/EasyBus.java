@@ -130,4 +130,9 @@ public class EasyBus {
         handlers.remove(handler);
     }
     
+    public List<EventHandler> getHandlers(){
+        return handlers;
+    }
+    
+
 }
