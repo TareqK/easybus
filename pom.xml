@@ -17,7 +17,7 @@
         <gpg.keyname>0E67DEB8220993E82E8CB4863E2F6EE7E3E324B5</gpg.keyname>
         <gpg.plugin.version>1.5</gpg.plugin.version>
         <source.plugin.version>2.2.1</source.plugin.version>
-        <javadoc.plugin.version>2.9.1</javadoc.plugin.version>
+        <javadoc.plugin.version>3.1.1</javadoc.plugin.version>
     </properties>
     <dependencies>
         <dependency>
