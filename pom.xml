@@ -14,6 +14,10 @@
         <lombok.version>1.18.12</lombok.version>
         <apache.commons.version>3.10</apache.commons.version>
         <auto-service.version>1.0-rc2</auto-service.version>
+        <gpg.keyname>0E67DEB8220993E82E8CB4863E2F6EE7E3E324B5</gpg.keyname>
+        <gpg.plugin.version>1.5</gpg.plugin.version>
+        <source.plugin.version>2.2.1</source.plugin.version>
+        <javadoc.plugin.version>2.9.1</javadoc.plugin.version>
     </properties>
     <dependencies>
         <dependency>
@@ -74,6 +78,69 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>ci</id>
+            <activation>
+                <property>
+                    <name>ci</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>${gpg.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <configuration>
+                                    <passphrase>${gpg.passphrase}</passphrase>
+                                    <keyname>${gpg.keyname}</keyname>
+                                    <gpgArguments>
+                                        <arg>--pinentry-mode</arg>
+                                        <arg>loopback</arg>
+                                    </gpgArguments>
+                                </configuration>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>${source.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>${javadoc.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
     <distributionManagement>
         <snapshotRepository>
             <id>ossrh</id>
