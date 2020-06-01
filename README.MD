@@ -1,4 +1,4 @@
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/me.kisoft/easybus/badge.png)
+![Maven Central](https://maven-badges.herokuapp.com/maven-central/me.kisoft/easybus/badge.png)
 # EasyBus
 Easy bus is a simple, in-memory event bus for java designed for simplicity and 
 java practices in mind
