@@ -21,12 +21,27 @@ package me.kisoft.easybus;
  */
 public interface Bus {
 
+    /**
+     * Posts an object to the event bus. 
+     * @param object the Object to post. Must have the annotation @Event to work correctly
+     */
     void post(Object object);
 
+    /**
+     * Clears all handlers from the event bus
+     */
     public void clear();
 
+    /**
+     * Adds a handler to the event bus
+     * @param handler  the event bus handler to add
+     */
     public void addHandler(EventHandler handler);
 
+    /**
+     * Removes a handler from the event bus
+     * @param handler the event bus handler to remove
+     */
     public void removeHandler(EventHandler handler);
 
 }
