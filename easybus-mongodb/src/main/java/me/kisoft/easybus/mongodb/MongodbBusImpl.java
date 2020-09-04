@@ -59,7 +59,7 @@ public class MongodbBusImpl implements Bus {
     @Override
     public void post(Object object) {
         MongodbEvent event = new MongodbEvent(object);
-        this.jongo.getCollection(object.getClass().getCanonicalName()).save(event);;
+        this.jongo.getCollection(object.getClass().getCanonicalName()).save(event);
     }
 
     @Override
@@ -70,7 +70,7 @@ public class MongodbBusImpl implements Bus {
 
     @Override
     public void addHandler(EventHandler handler) {
-        ScheduledFuture future = pool.scheduleAtFixedRate(new MongoDbEventRunnable(handler, this.jongo), 0l, this.pollTime, TimeUnit.SECONDS);
+        ScheduledFuture future = pool.scheduleAtFixedRate(new MongodbCollectionPollRunnable(handler, this.jongo), 0l, this.pollTime, TimeUnit.SECONDS);
         futureMap.put(handler, future);
     }
 

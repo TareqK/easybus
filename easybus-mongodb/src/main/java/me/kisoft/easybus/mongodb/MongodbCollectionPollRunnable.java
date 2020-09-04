@@ -26,7 +26,7 @@ import org.jongo.Jongo;
  * @author tareq
  */
 @Log
-public class MongoDbEventRunnable implements Runnable {
+public class MongodbCollectionPollRunnable implements Runnable {
 
     private final EventHandler handler;
     private final Jongo jongo;
@@ -35,7 +35,7 @@ public class MongoDbEventRunnable implements Runnable {
     private static final String FAILED_HANDLE_QUERY = "{query:{id:{$eq:#}},update:{$set:{processing:false,lastAccess:#,handled:false}}}";
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public MongoDbEventRunnable(EventHandler handler, Jongo jongo) {
+    public MongodbCollectionPollRunnable(EventHandler handler, Jongo jongo) {
         if (handler == null) {
             throw new IllegalArgumentException("Attempting to start runnable with null handler");
         }
@@ -70,8 +70,8 @@ public class MongoDbEventRunnable implements Runnable {
         if (this == other) {
             return true;
         }
-        if (other instanceof MongoDbEventRunnable) {
-            MongoDbEventRunnable casted = (MongoDbEventRunnable) other;
+        if (other instanceof MongodbCollectionPollRunnable) {
+            MongodbCollectionPollRunnable casted = (MongodbCollectionPollRunnable) other;
             return this.handler.equals(casted.handler) && this.jongo.equals(casted.jongo);
         }
         return false;
