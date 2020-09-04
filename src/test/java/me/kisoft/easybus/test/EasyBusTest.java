@@ -6,9 +6,9 @@
 package me.kisoft.easybus.test;
 
 import me.kisoft.easybus.EasyBus;
+import me.kisoft.easybus.MemoryBusImpl;
 import me.kisoft.easybus.test.events.AsyncEvent;
 import me.kisoft.easybus.test.events.SyncEvent;
-import me.kisoft.easybus.test.handlers.SyncHandler;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
@@ -19,7 +19,9 @@ import org.junit.Test;
  */
 public class EasyBusTest {
 
-    EasyBus bus = new EasyBus();
+    
+    MemoryBusImpl memBus = new MemoryBusImpl();
+    EasyBus bus = new EasyBus(memBus);
 
     @Before
     public void clearBus() {
@@ -29,13 +31,13 @@ public class EasyBusTest {
     @Test
     public void packageScanningTest() {
         bus.search("me.kisoft.easybus.test.handlers");
-        assertEquals(bus.getHandlers().size(), 2);
+        assertEquals(memBus.getHandlers().size(), 2);
     }
 
     @Test
     public void classScanningTest() {
         bus.search(this.getClass());
-        assertEquals(bus.getHandlers().size(), 2);
+        assertEquals(memBus.getHandlers().size(), 2);
     }
 
     @Test
