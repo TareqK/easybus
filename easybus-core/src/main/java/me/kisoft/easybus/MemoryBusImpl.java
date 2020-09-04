@@ -67,9 +67,8 @@ public class MemoryBusImpl implements Bus {
         handlers.remove(handler);
     }
 
-    public List<EventHandler> getHandlers(){
+    public List<EventHandler> getHandlers() {
         return handlers;
     }
 
- 
 }

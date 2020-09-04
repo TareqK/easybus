@@ -6,6 +6,7 @@
 package me.kisoft.easybus;
 
 import java.lang.reflect.Method;
+import java.util.Objects;
 import lombok.Getter;
 import lombok.extern.java.Log;
 
@@ -27,8 +28,10 @@ public class EventHandler {
     private String eventClassName;
     @Getter
     private boolean async = false;
+    @Getter
+    private Class eventClass;
 
-    EventHandler(Object handler) throws NoSuchMethodException,SecurityException  {// These should be impossible to throw, we use compile time checking
+    EventHandler(Object handler) throws NoSuchMethodException, SecurityException {// These should be impossible to throw, we use compile time checking
         this.handler = handler;
         findTargetClass(handler);
         findHandleMethod(handler);
@@ -38,11 +41,12 @@ public class EventHandler {
 
     private void findTargetClass(Object handler) {
         Class foundClass = handler.getClass().getAnnotation(Handle.class).event();
+        this.eventClass = foundClass;
         this.eventClassName = foundClass.getCanonicalName();
 
     }
 
-    private void findHandleMethod(Object handler) throws  NoSuchMethodException,SecurityException {// These should be impossible to throw, we use compile time checking
+    private void findHandleMethod(Object handler) throws NoSuchMethodException, SecurityException {// These should be impossible to throw, we use compile time checking
         Method foundMethod = handler.getClass().getMethod("handle", handler.getClass().getAnnotation(Handle.class).event());
         this.handlerMethod = foundMethod;
 
@@ -56,15 +60,55 @@ public class EventHandler {
      * handles an event by matching its type to a handler
      *
      * @param event the event to handle
-     * @throws Throwable
+     * @throws RuntimeException if anything should happen
      */
-    final void handle(Object event) {
+    public final void handle(Object event) throws RuntimeException {
         try {
             this.handlerMethod.invoke(this.handler, event);
         } catch (Throwable ex) {
             log.severe(ex.getMessage());
+            throw new RuntimeException(ex);
         }
 
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 31 * hash + Objects.hashCode(this.handler);
+        hash = 31 * hash + Objects.hashCode(this.handlerMethod);
+        hash = 31 * hash + (this.async ? 1 : 0);
+        hash = 31 * hash + Objects.hashCode(this.eventClass);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final EventHandler other = (EventHandler) obj;
+        if (this.async != other.async) {
+            return false;
+        }
+        if (!Objects.equals(this.handler, other.handler)) {
+            return false;
+        }
+        if (!Objects.equals(this.handlerMethod, other.handlerMethod)) {
+            return false;
+        }
+        if (!Objects.equals(this.eventClass, other.eventClass)) {
+            return false;
+        }
+        return true;
+    }
+    
+    
 
 }
