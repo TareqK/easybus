@@ -17,6 +17,7 @@ package me.kisoft.easybus.mongodb;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Date;
+import java.util.logging.Level;
 import lombok.extern.java.Log;
 import me.kisoft.easybus.EventHandler;
 import org.jongo.Jongo;
@@ -30,9 +31,6 @@ public class MongodbCollectionPollRunnable implements Runnable {
 
     private final EventHandler handler;
     private final Jongo jongo;
-    private static final String START_HANDLE_QUERY = "{query:{$and:[processing:{$eq:false},handled:{$eq:false}]},update:{$set:{processing:true,lastAccess:#,handled:false}},sort:{lastAccess: 1}}";
-    private static final String SUCCESS_HANDLE_QUERY = "{query:{id:{$eq:#}},update:{$set:{processing:true,lastAccess:#,handled:true}}}";
-    private static final String FAILED_HANDLE_QUERY = "{query:{id:{$eq:#}},update:{$set:{processing:false,lastAccess:#,handled:false}}}";
     private final ObjectMapper mapper = new ObjectMapper();
 
     public MongodbCollectionPollRunnable(EventHandler handler, Jongo jongo) {
@@ -48,17 +46,34 @@ public class MongodbCollectionPollRunnable implements Runnable {
 
     @Override
     public void run() {
-        MongodbEvent event = this.jongo.getCollection(handler.getEventClassName()).findAndModify(START_HANDLE_QUERY).as(MongodbEvent.class);
-        if (event != null) {
-            Object data = mapper.convertValue(event.getData(), this.handler.getEventClass());
-            try {
-                this.handler.handle(data);
-                this.jongo.getCollection(handler.getEventClassName()).findAndModify(SUCCESS_HANDLE_QUERY, event.getId(), new Date());
+        try {
+            MongodbEvent event = this.jongo.getCollection(handler.getEventClassName())
+                    .findAndModify("{processing:false,handled:false}")
+                    .sort("{lastAccess:1}")
+                    .with("{$set:{processing:true,lastAccess:#}}", new Date())
+                    .as(MongodbEvent.class);
 
-            } catch (RuntimeException ex) {
-                log.fine(ex.getMessage());
-                this.jongo.getCollection(handler.getEventClassName()).findAndModify(FAILED_HANDLE_QUERY, event.getId(), new Date());
+            if (event != null) {
+                Object data = mapper.convertValue(event.getData(), this.handler.getEventClass());
+                try {
+                    this.handler.handle(data);
+                    event = this.jongo.getCollection(handler.getEventClassName())
+                            .findAndModify("{eventId:#}", event.getEventId())
+                            .with("{$set:{processing:false,handled:true,lastAccess:#}}", new Date())
+                            .as(MongodbEvent.class);
+
+                } catch (RuntimeException ex) {
+                    log.fine(ex.getMessage());
+                    event = this.jongo.getCollection(handler.getEventClassName())
+                            .findAndModify("{eventId:#}", event.getEventId())
+                            .with("{$set:{processing:false,handled:false,lastAccess:#}}", new Date())
+                            .as(MongodbEvent.class);
+                    log.log(Level.FINE, "Re-Submitting event with id : {0}", event.getEventId());
+                }
+
             }
+        } catch (IllegalArgumentException ex) {
+            log.severe(ex.getMessage());
         }
     }
 

@@ -15,6 +15,7 @@
  */
 package me.kisoft.easybus.mongodb;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -24,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 import me.kisoft.easybus.Bus;
 import me.kisoft.easybus.EventHandler;
 import org.jongo.Jongo;
-import org.jongo.MongoCollection;
 
 /**
  *
@@ -36,10 +36,11 @@ public class MongodbBusImpl implements Bus {
     private final long pollTime;
     private final Map<EventHandler, ScheduledFuture> futureMap = new HashMap<>();
     private final Jongo jongo;
+    ObjectMapper mapper = new ObjectMapper();
 
     public MongodbBusImpl() {
         this.pool = Executors.newScheduledThreadPool(15);
-        this.pollTime = 20l;
+        this.pollTime = 10l;
         this.jongo = null;
 
     }
@@ -52,13 +53,13 @@ public class MongodbBusImpl implements Bus {
 
     public MongodbBusImpl(Jongo jongo) {
         this.pool = Executors.newScheduledThreadPool(15);
-        this.pollTime = 20l;
+        this.pollTime = 10l;
         this.jongo = jongo;
     }
 
     @Override
     public void post(Object object) {
-        MongodbEvent event = new MongodbEvent(object);
+        MongodbEvent event = new MongodbEvent(mapper.convertValue(object, Map.class));
         this.jongo.getCollection(object.getClass().getCanonicalName()).save(event);
     }
 
@@ -70,7 +71,7 @@ public class MongodbBusImpl implements Bus {
 
     @Override
     public void addHandler(EventHandler handler) {
-        ScheduledFuture future = pool.scheduleAtFixedRate(new MongodbCollectionPollRunnable(handler, this.jongo), 0l, this.pollTime, TimeUnit.SECONDS);
+        ScheduledFuture future = pool.scheduleAtFixedRate(new MongodbCollectionPollRunnable(handler, this.jongo), 0l, this.pollTime, TimeUnit.MILLISECONDS);
         futureMap.put(handler, future);
     }
 

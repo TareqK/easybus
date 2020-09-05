@@ -1,3 +1,8 @@
+package me.kisoft.easybus.mongodb.test;
+
+
+import me.kisoft.easybus.Handle;
+
 /*
  * Copyright 2020 tareq.
  *
@@ -13,33 +18,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kisoft.easybus.mongodb;
-
-import java.util.Date;
-import java.util.Map;
-import java.util.UUID;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
 
 /**
  *
  * @author tareq
  */
-@Getter
-@Setter
-@ToString
-@NoArgsConstructor
-public class MongodbEvent {
-
-    private String eventId = UUID.randomUUID().toString();
-    private boolean handled = false;
-    private boolean processing = false;
-    private Map data =null;
-    private Date lastAccess = new Date();
-    
-    public MongodbEvent(Map data){
-        this.data = data;
+@Handle(event=MongodbTestEvent.class)
+public class MongodbTestHandler {
+    public void handle(MongodbTestEvent event){
+        MongodbTestEvent.checked = true;
     }
 }

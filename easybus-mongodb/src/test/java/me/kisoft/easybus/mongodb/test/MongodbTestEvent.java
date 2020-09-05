@@ -1,3 +1,9 @@
+package me.kisoft.easybus.mongodb.test;
+
+import lombok.Data;
+import me.kisoft.easybus.Event;
+import org.apache.commons.lang3.RandomStringUtils;
+
 /*
  * Copyright 2020 tareq.
  *
@@ -13,33 +19,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kisoft.easybus.mongodb;
-
-import java.util.Date;
-import java.util.Map;
-import java.util.UUID;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
-
 /**
  *
  * @author tareq
  */
-@Getter
-@Setter
-@ToString
-@NoArgsConstructor
-public class MongodbEvent {
+@Event
+@Data
+public class MongodbTestEvent {
 
-    private String eventId = UUID.randomUUID().toString();
-    private boolean handled = false;
-    private boolean processing = false;
-    private Map data =null;
-    private Date lastAccess = new Date();
-    
-    public MongodbEvent(Map data){
-        this.data = data;
-    }
+    public static boolean checked = false;
+    private String field1 = RandomStringUtils.randomAlphabetic(30);
+    private String field2 = RandomStringUtils.randomAlphabetic(30);
+
 }
