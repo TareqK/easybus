@@ -14,11 +14,15 @@ To use the easybus, add the following into your pom.xml
 ```xml
 <dependency>
   <groupId>me.kisoft</groupId>
-  <artifactId>easybs</artifactId>
+  <artifactId>easybus-core</artifactId>
   <version>${LATEST_VERSION}</version>
 </dependency>
 
 ```
+
+If you want to use a specific backing implementation of easybus, you can also import
+that specific implementation which will also import easybus
+
 ## Defining Events and Handlers
 Afterwards, you will need to define your events and handlers using the ```@Handle```
 and ```@Event``` annotations
@@ -64,7 +68,8 @@ bus.post(new MyEvent());
 
 ### Async Handlers
 Async Handlers are defined in the same way as handlers, except that they run 
-in a seperate thread from the current thread
+in a seperate thread from the current thread. This is more of a hint to the backing bus;
+its not mandatory to honor async execution.
 ```java
 @Handle(event=MyEvent.class,async=true)
 public class MyEventAsyncHandler{
@@ -73,9 +78,10 @@ public class MyEventAsyncHandler{
    }
 }
 ```
-#### Increasing Thread Pool Size
 
-By default, the thread pool size is 15 threads to run the events on. You can 
-increase or decrease this by using the ```new EasyBus(int numberOfThreads)``` constructor, which will specify the size of the pool
+## Implementing a Backing Bus
 
+To implement a backing bus, all you need to do is implement the ```me.kisoft.easybus.Bus``` Interface, and when 
+creating a new EasyBus, you need to use the ```new EasyBus(Bus bus)``` constructor to change the backing bus, or 
+create your own factory
 

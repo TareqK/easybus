@@ -1,17 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.kisoft</groupId>
-    <artifactId>easybus</artifactId>
-    <version>1.0.0</version>
-    <packaging>jar</packaging>
+    <artifactId>easybus-parent</artifactId>
+    <version>2.0.0-SNAPSHOT</version>
+    <name>EasyBus</name>
+    <packaging>pom</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <reflections.version>0.9.11</reflections.version>
-        <jbus.version>1.1</jbus.version>
         <lombok.version>1.18.12</lombok.version>
+        <junit.version>4.13</junit.version>
         <apache.commons.version>3.10</apache.commons.version>
         <auto-service.version>1.0-rc2</auto-service.version>
         <gpg.keyname>0E67DEB8220993E82E8CB4863E2F6EE7E3E324B5</gpg.keyname>
@@ -19,63 +21,11 @@
         <source.plugin.version>2.2.1</source.plugin.version>
         <javadoc.plugin.version>3.1.1</javadoc.plugin.version>
     </properties>
-    
-    <name>Easybus</name>
-    <description>Simple, No Frills Event Bus for Java</description>
-    <url>http://github.com/TareqK/easybus</url>
-
-    <licenses>
-        <license>
-            <name>Apache License, Version 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
-    <developers>
-        <developer>
-            <id>TareqK</id>
-            <name>Tareq Kirresh</name>
-            <email>kirreshtareq@gmail.com</email>
-            <roles>
-                <role>maintainer</role>
-            </roles>
-        </developer>
-    </developers>
-    <scm>
-        <url>http://github.com/TareqK/easybus</url>
-    </scm>
-    <dependencies>
-        <dependency>
-            <groupId>org.reflections</groupId>
-            <artifactId>reflections</artifactId>
-            <version>${reflections.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>${apache.commons.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.google.auto.service</groupId>
-            <artifactId>auto-service</artifactId>
-            <version>${auto-service.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.13</version>
-            <scope>test</scope>
-            <type>jar</type>
-        </dependency>
-    </dependencies>
+    <modules>
+        <!-- <module>compiler-plugin-java-9</module> --> <!-- We haven't upgraded to java 9. -->   
+        <module>easybus-core</module>     
+        <module>easybus-mongodb</module>     
+    </modules>
     <build>
         <plugins>
             <plugin>
@@ -177,4 +127,5 @@
             <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
     </distributionManagement>
+
 </project>

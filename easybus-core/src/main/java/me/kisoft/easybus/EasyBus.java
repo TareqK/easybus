@@ -6,14 +6,8 @@
 package me.kisoft.easybus;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 import lombok.extern.java.Log;
-import org.apache.commons.lang3.StringUtils;
 import org.reflections.Reflections;
 
 /**
@@ -23,54 +17,37 @@ import org.reflections.Reflections;
 @Log
 public class EasyBus {
 
-    private final List<EventHandler> handlers = new ArrayList<>();
-    private final ExecutorService pool;
-
+    private final Bus bus;
     /**
      * Creates a new EventBus
      */
     public EasyBus() {
-        pool = Executors.newFixedThreadPool(5);
+        bus = new MemoryBusImpl();
     }
-
-    /**
-     * Creates a new EventBus with the specified number of background executors for async processing
-     * @param numberOfExecutors the number of threads to allocate for async processing
-     */
-    public EasyBus(int numberOfExecutors) {
-        pool = Executors.newFixedThreadPool(numberOfExecutors);
+    
+    public EasyBus(Bus bus){
+        this.bus = bus;
     }
-
+    
     /**
      * Resets the event bus
      */
     public void removeHandlers() {
-        handlers.clear();
+        bus.clear();
     }
 
     /**
-     * Posts an event to the domain bus
+     * Posts an event to the event bus
      *
      * @param event the event to post
      */
     public void post(Object event) {
         if (event != null) {
             log.log(Level.FINE, "Event Thrown : {0}", event.getClass().getCanonicalName());
-            handlers.parallelStream()
-                    .filter(handler -> StringUtils.equals(handler.getEventClassName(), event.getClass().getCanonicalName()))
-                    .collect(Collectors.toList())
-                    .stream()
-                    .forEach(handler -> doHandle(handler, event));
+            bus.post(event);
         }
     }
-
-    private void doHandle(EventHandler handler, Object event) {
-        if (handler.isAsync()) {
-            pool.submit(() -> handler.handle(event));
-        } else {
-            handler.handle(event);
-        }
-    }
+    
 
     /**
      * Search a package name or reflections criteria for events and handlers
@@ -99,6 +76,11 @@ public class EasyBus {
         return search(new Reflections(loader));
     }
 
+    /**
+     * Searches for handlers in refecltions
+     * @param r the reflections to search for handlers in
+     * @return the current eventbus
+     */
     public final EasyBus search(Reflections r) {
         for (Class clazz : r.getTypesAnnotatedWith(Handle.class)) {
             try {
@@ -118,7 +100,7 @@ public class EasyBus {
      * @param handler the handler to add
      */
     public void addHandler(EventHandler handler) {
-        handlers.add(handler);
+        bus.addHandler(handler);
     }
 
     
@@ -127,11 +109,7 @@ public class EasyBus {
      * @param handler  the handler to remove
      */
     public void removeHandler(EventHandler handler) {
-        handlers.remove(handler);
-    }
-    
-    public List<EventHandler> getHandlers(){
-        return handlers;
+        bus.removeHandler(handler);
     }
     
 

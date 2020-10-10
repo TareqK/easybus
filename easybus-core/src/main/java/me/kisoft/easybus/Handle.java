@@ -24,7 +24,7 @@ public @interface Handle {
      */
     public Class<?> event();
     /**
-     * Whether or not this handler is async
+     * Whether or not this handler is async. This may or may not be honored by the backing bus
      * @return whether or not this handler is async
      */
     public boolean async() default false;
