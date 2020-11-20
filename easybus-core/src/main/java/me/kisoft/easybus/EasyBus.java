@@ -77,7 +77,7 @@ public class EasyBus {
     }
 
     /**
-     * Searches for handlers in refecltions
+     * Searches for handlers in reflections
      * @param r the reflections to search for handlers in
      * @return the current eventbus
      */
@@ -110,6 +110,10 @@ public class EasyBus {
      */
     public void removeHandler(EventHandler handler) {
         bus.removeHandler(handler);
+    }
+
+    public void close() throws Exception {
+        bus.close();
     }
     
 
