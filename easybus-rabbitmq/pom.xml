@@ -13,6 +13,7 @@
     <description>Simple, No Frills Event Bus for Java Backed by RabbitMQ</description>
     <properties>
         <rabbitmq.client.version>5.10.0</rabbitmq.client.version>
+        <jackson.version>2.10.3</jackson.version>
     </properties>
     <dependencies>
         <dependency>
@@ -41,7 +42,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.10.3</version>
+            <version>${jackson.version}</version>
             <type>jar</type>
         </dependency>
     </dependencies>
