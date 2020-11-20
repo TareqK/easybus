@@ -1,3 +1,4 @@
 /target/
 /easybus-core/target/
 /easybus-mongodb/target/
+/easybus-rabbitmq/target/

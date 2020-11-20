@@ -19,11 +19,13 @@ package me.kisoft.easybus;
  *
  * @author tareq
  */
-public interface Bus {
+public interface Bus extends AutoCloseable {
 
     /**
-     * Posts an object to the event bus. 
-     * @param object the Object to post. Must have the annotation @Event to work correctly
+     * Posts an object to the event bus.
+     *
+     * @param object the Object to post. Must have the annotation @Event to work
+     * correctly
      */
     void post(Object object);
 
@@ -34,14 +36,21 @@ public interface Bus {
 
     /**
      * Adds a handler to the event bus
-     * @param handler  the event bus handler to add
+     *
+     * @param handler the event bus handler to add
      */
     public void addHandler(EventHandler handler);
 
     /**
      * Removes a handler from the event bus
+     *
      * @param handler the event bus handler to remove
      */
     public void removeHandler(EventHandler handler);
+
+    @Override
+    public default void close() throws Exception {
+
+    }
 
 }

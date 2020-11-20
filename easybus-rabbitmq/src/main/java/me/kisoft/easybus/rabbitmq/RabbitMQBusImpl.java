@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+import lombok.extern.java.Log;
 import me.kisoft.easybus.Bus;
 import me.kisoft.easybus.EventHandler;
 
@@ -30,11 +31,13 @@ import me.kisoft.easybus.EventHandler;
  *
  * @author tareq
  */
+@Log
 public class RabbitMQBusImpl implements Bus {
 
     private final Connection connection;
     private final ObjectMapper mapper = new ObjectMapper();
     private final Map<EventHandler, String> tagMap = new HashMap<>();
+    private final Map<EventHandler, Channel> channelMap = new HashMap<>();
 
     public RabbitMQBusImpl(Connection connection) {
         this.connection = connection;
@@ -64,41 +67,75 @@ public class RabbitMQBusImpl implements Bus {
     }
 
     private String getQueueName(Class clazz) {
-        QueueName queueName = clazz.getAnnotation(QueueName.class);
-        String name = clazz.getSimpleName();
+        QueueName queueName = (QueueName) clazz.getAnnotation(QueueName.class);
         if (queueName != null) {
-            name = queueName.value();
+            return queueName.value();
         }
-        return name;
+        return clazz.getSimpleName();
     }
 
     @Override
     public void clear() {
-
+        try (Channel channel = this.connection.createChannel()) {
+            tagMap.values().forEach(tag -> {
+                try {
+                    channel.basicCancel(tag);
+                } catch (IOException ex) {
+                    log.severe(ex.getMessage());
+                }
+            });
+            channelMap.values().forEach(usedChannel -> {
+                try {
+                    usedChannel.close();
+                } catch (IOException | TimeoutException ex) {
+                    log.severe(ex.getMessage());
+                }
+            });
+        } catch (IOException | TimeoutException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     @Override
     public void addHandler(EventHandler handler) {
-        try (Channel channel = this.connection.createChannel()) {
-            channel.queueDeclare(getQueueName(handler.getEventClass()), false, false, false, null);
+        try {
+            Channel channel = this.connection.createChannel();
+            channel.queueDeclare(getQueueName(handler.getEventClass()), false, false, false, null).getQueue();
+            log.info(String.format("Declaring Queue %s for Event %s", getQueueName(handler.getEventClass()), handler.getEventClassName()));
             String tag = channel.basicConsume(getQueueName(handler.getEventClass()), (consumerTag, delivery) -> {
+                log.fine(String.format("Received Message from Queue %s with Delivery Tag %s", getQueueName(handler.getEventClassName()), String.valueOf(delivery.getEnvelope().getDeliveryTag())));
+                channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
                 handler.handle(mapper.reader().forType(handler.getEventClass()).readValue(delivery.getBody()));
             }, consumerTag -> {
             });
             tagMap.put(handler, tag);
-        } catch (IOException | TimeoutException ex) {
+            channelMap.put(handler, channel);
+        } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
     }
 
     @Override
     public void removeHandler(EventHandler handler) {
-        try (Channel channel = this.connection.createChannel()) {
+        try {
             String consumerTag = tagMap.get(handler);
+            Channel channel = channelMap.get(handler);
             channel.basicCancel(consumerTag);
+            channel.close();
         } catch (IOException | TimeoutException ex) {
             throw new RuntimeException(ex);
         }
     }
 
+    @Override
+    public void close() throws IOException {
+        channelMap.values().forEach(channel -> {
+            try {
+                channel.close();
+            } catch (IOException | TimeoutException ex) {
+                log.severe(ex.getMessage());
+            }
+        });
+        connection.close();
+    }
 }
