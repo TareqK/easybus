@@ -27,6 +27,29 @@
         <module>easybus-mongodb</module>
         <module>easybus-rabbitmq</module>
     </modules>
+    <url>http://github.com/TareqK/easybus</url>
+    <description>Simple, No Frills Event Bus for Java</description>
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>TareqK</id>
+            <name>Tareq Kirresh</name>
+            <email>kirreshtareq@gmail.com</email>
+            <roles>
+                <role>maintainer</role>
+            </roles>
+        </developer>
+    </developers>
+    <scm>
+        <url>http://github.com/TareqK/easybus</url>
+    </scm>
     <build>
         <plugins>
             <plugin>
