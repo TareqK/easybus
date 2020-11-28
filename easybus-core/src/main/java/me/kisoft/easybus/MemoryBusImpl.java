@@ -32,7 +32,7 @@ public class MemoryBusImpl implements Bus {
     private final ExecutorService pool;
 
     public MemoryBusImpl() {
-        pool = Executors.newFixedThreadPool(5);
+        pool = Executors.newCachedThreadPool();
     }
 
     @Override
