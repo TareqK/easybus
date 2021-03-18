@@ -38,7 +38,7 @@ public class MemoryBusImpl implements Bus {
     @Override
     public void post(Object event) {
         handlers.parallelStream()
-                .filter(handler -> StringUtils.equals(handler.getEventClassName(), event.getClass().getCanonicalName()))
+                .filter(handler -> handler.getEventClass().isInstance(event))
                 .collect(Collectors.toList())
                 .stream()
                 .forEach(handler -> doHandle(handler, event));
