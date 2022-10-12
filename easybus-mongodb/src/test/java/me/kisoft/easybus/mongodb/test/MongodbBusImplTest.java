@@ -1,16 +1,17 @@
 package me.kisoft.easybus.mongodb.test;
 
-import com.mongodb.DB;
 import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
 import me.kisoft.easybus.EasyBus;
 import me.kisoft.easybus.mongodb.MongodbBusImpl;
 import org.jongo.Jongo;
-import org.junit.After;
 import org.junit.AfterClass;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.testcontainers.containers.MongoDBContainer;
+import org.testcontainers.utility.DockerImageName;
 
 /*
  * Copyright 2020 tareq.
@@ -35,14 +36,16 @@ public class MongodbBusImplTest {
 
     private EasyBus bus;
     private MongodbBusImpl busImpl;
+    private static  MongoDBContainer mongoDBContainer;
     private static Jongo jongo;
     private static MongoClient client;
 
     @BeforeClass
     public static void preparePool() {
-        client = new MongoClient();
+        mongoDBContainer = new MongoDBContainer(DockerImageName.parse("mongo:4.0.10"));
+        mongoDBContainer.start();
+        client = new MongoClient(new MongoClientURI(mongoDBContainer.getConnectionString()));
         jongo = new Jongo(client.getDB("events"));
-
     }
 
     @Before

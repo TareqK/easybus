@@ -16,13 +16,15 @@
 package me.kisoft.easybus.rabbitmq.test;
 
 import me.kisoft.easybus.Event;
-import me.kisoft.easybus.rabbitmq.QueueName;
+import me.kisoft.easybus.rabbitmq.ExchangeName;
+
 /**
  *
  * @author tareq
  */
 @Event
-@QueueName("named_event")
+@ExchangeName("named.exchange")
 public class RabbitMQNamedTestEvent {
-    public static boolean handled=false;
+
+    public static boolean handled = false;
 }

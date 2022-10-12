@@ -12,6 +12,7 @@ import me.kisoft.easybus.test.events.ChildClassEvent;
 import me.kisoft.easybus.test.events.ParentClassEvent;
 import me.kisoft.easybus.test.events.SyncEvent;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -82,6 +83,26 @@ public class EasyBusTest {
             Thread.sleep(20);
         }
         assertEquals(AsyncEvent.checked, true);
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void missingHandlerThrowsErrorTest() {
+        try {
+            bus.search("me.kisoft.easybus.negativetest2.handlers");
+        } catch (RuntimeException ex) {
+            assertTrue(ex.getMessage().contains("'handle' method for Specified Event type"));
+            throw ex;
+        }
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void missingEventAnnotationThrowsErrorTest() {
+        try {
+            bus.search("me.kisoft.easybus.negativetest1.handlers");
+        } catch (RuntimeException ex) {
+            assertTrue(ex.getMessage().contains("Not annotated with @Event"));
+            throw ex;
+        }
     }
 
 }

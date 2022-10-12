@@ -25,4 +25,5 @@ import me.kisoft.easybus.Event;
 public class RabbitMQTestEvent {
 
     public static boolean handled = false;
+    public static boolean handled2 = false;
 }

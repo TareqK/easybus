@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 tareq.
+ * Copyright 2022 tareq.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,20 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kisoft.easybus.rabbitmq.test;
+package me.kisoft.easybus.negativetest.events;
 
-import me.kisoft.easybus.Handle;
-import me.kisoft.easybus.rabbitmq.QueueName;
+import me.kisoft.easybus.Event;
 
 /**
  *
  * @author tareq
  */
-@Handle(event = RabbitMQNamedTestEvent.class)
-@QueueName("named.queue")
-public class RabbitMQNamedTestHandler {
-
-    public void handle(RabbitMQNamedTestEvent event) {
-        RabbitMQNamedTestEvent.handled = true;
-    }
+@Event
+public class AnnotatedEvent {
+    
 }

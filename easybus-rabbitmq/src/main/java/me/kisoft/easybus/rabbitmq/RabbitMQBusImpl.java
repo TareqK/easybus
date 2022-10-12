@@ -16,6 +16,8 @@
 package me.kisoft.easybus.rabbitmq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
@@ -26,6 +28,7 @@ import java.util.concurrent.TimeoutException;
 import lombok.extern.java.Log;
 import me.kisoft.easybus.Bus;
 import me.kisoft.easybus.EventHandler;
+import org.apache.commons.lang3.RandomStringUtils;
 
 /**
  *
@@ -55,8 +58,8 @@ public class RabbitMQBusImpl implements Bus {
 
     @Override
     public void post(Object object) {
-        try (Channel channel = this.connection.createChannel()) {
-            channel.basicPublish("", getQueueName(object), null, mapper.writer().writeValueAsBytes(object));
+        try ( Channel channel = this.connection.createChannel()) {
+            channel.basicPublish(getExcahngeName(object.getClass()), "all", null, mapper.writer().writeValueAsBytes(object));
         } catch (IOException | TimeoutException ex) {
             throw new RuntimeException(ex);
         }
@@ -74,9 +77,17 @@ public class RabbitMQBusImpl implements Bus {
         return clazz.getSimpleName();
     }
 
+    private String getExcahngeName(Class clazz) {
+        ExchangeName exchangeName = (ExchangeName) clazz.getAnnotation(ExchangeName.class);
+        if (exchangeName != null) {
+            return exchangeName.value();
+        }
+        return clazz.getSimpleName();
+    }
+
     @Override
     public void clear() {
-        try (Channel channel = this.connection.createChannel()) {
+        try ( Channel channel = this.connection.createChannel()) {
             tagMap.values().forEach(tag -> {
                 try {
                     channel.basicCancel(tag);
@@ -98,14 +109,17 @@ public class RabbitMQBusImpl implements Bus {
 
     @Override
     public void addHandler(EventHandler handler) {
+        String exchangeName = getExcahngeName(handler.getEventClass());
+        String queueName = getQueueName(handler.getHandler());
         try {
             Channel channel = this.connection.createChannel();
-            channel.queueDeclare(getQueueName(handler.getEventClass()), false, false, false, null).getQueue();
-            log.info(String.format("Declaring Queue %s for Event %s", getQueueName(handler.getEventClass()), handler.getEventClassName()));
-            String tag = channel.basicConsume(getQueueName(handler.getEventClass()), (consumerTag, delivery) -> {
-                log.fine(String.format("Received Message from Queue %s with Delivery Tag %s", getQueueName(handler.getEventClassName()), String.valueOf(delivery.getEnvelope().getDeliveryTag())));
-                channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+            channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
+            channel.queueDeclare(queueName, false, false, false, null).getQueue();
+            channel.queueBind(queueName, exchangeName, RandomStringUtils.randomAlphabetic(30));
+            String tag = channel.basicConsume(getQueueName(handler.getHandler()), (consumerTag, delivery) -> {
+                log.fine(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
                 handler.handle(mapper.reader().forType(handler.getEventClass()).readValue(delivery.getBody()));
+                channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
             }, consumerTag -> {
             });
             tagMap.put(handler, tag);

@@ -17,16 +17,14 @@ package me.kisoft.easybus.rabbitmq.test;
 
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
-import java.io.IOException;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.TimeoutException;
 import me.kisoft.easybus.EasyBus;
 import me.kisoft.easybus.rabbitmq.RabbitMQBusImpl;
 import org.junit.AfterClass;
 import static org.junit.Assert.assertTrue;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.testcontainers.containers.RabbitMQContainer;
+import org.testcontainers.utility.DockerImageName;
 
 /**
  *
@@ -35,14 +33,17 @@ import org.junit.Test;
 public class RabbitMQBusImplTest {
 
     private static EasyBus bus;
+    private static RabbitMQContainer rabbitMqContainer;
 
     @BeforeClass
     public static void scanForEvents() throws Exception {
+        rabbitMqContainer = new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.11.0"));
+        rabbitMqContainer.start();
         ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost("localhost");
-        factory.setPort(5672);
-        factory.setUsername("guest");
-        factory.setPassword("guest");
+        factory.setHost(rabbitMqContainer.getHost());
+        factory.setPort(rabbitMqContainer.getAmqpPort());
+        factory.setUsername(rabbitMqContainer.getAdminUsername());
+        factory.setPassword(rabbitMqContainer.getAdminPassword());
         Connection connection = factory.newConnection();
         bus = new EasyBus(new RabbitMQBusImpl(connection));
         bus.search("me.kisoft.easybus.rabbitmq.test");
@@ -50,6 +51,7 @@ public class RabbitMQBusImplTest {
 
     @Test(timeout = 10000)
     public void handleEvent() throws InterruptedException {
+        RabbitMQTestEvent.handled = false;
         bus.post(new RabbitMQTestEvent());
         while (!RabbitMQTestEvent.handled) {
             Thread.sleep(100);
@@ -59,11 +61,27 @@ public class RabbitMQBusImplTest {
 
     @Test(timeout = 10000)
     public void handleNamedEvent() throws InterruptedException {
+        RabbitMQNamedTestEvent.handled = false;
         bus.post(new RabbitMQNamedTestEvent());
         while (!RabbitMQNamedTestEvent.handled) {
             Thread.sleep(100);
         }
         assertTrue(RabbitMQNamedTestEvent.handled);
+    }
+
+    @Test(timeout = 10000)
+    public void multiEventHandlerTest() throws InterruptedException {
+        RabbitMQTestEvent.handled = false;
+        RabbitMQTestEvent.handled2 = false;
+        bus.post(new RabbitMQTestEvent());
+        while (!RabbitMQTestEvent.handled) {
+            Thread.sleep(100);
+        }
+        while (!RabbitMQTestEvent.handled2) {
+            Thread.sleep(100);
+        }
+        assertTrue(RabbitMQTestEvent.handled);
+        assertTrue(RabbitMQTestEvent.handled2);
     }
 
     @AfterClass
