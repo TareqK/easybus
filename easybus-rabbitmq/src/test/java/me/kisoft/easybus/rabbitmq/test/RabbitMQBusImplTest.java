@@ -37,13 +37,14 @@ public class RabbitMQBusImplTest {
 
     @BeforeClass
     public static void scanForEvents() throws Exception {
-        rabbitMqContainer = new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.11.0"));
+        rabbitMqContainer = new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.11.0"))
+                .withUser("guest", "guest");
         rabbitMqContainer.start();
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(rabbitMqContainer.getHost());
         factory.setPort(rabbitMqContainer.getAmqpPort());
-        factory.setUsername(rabbitMqContainer.getAdminUsername());
-        factory.setPassword(rabbitMqContainer.getAdminPassword());
+        factory.setUsername("guest");
+        factory.setPassword("guest");
         Connection connection = factory.newConnection();
         bus = new EasyBus(new RabbitMQBusImpl(connection));
         bus.search("me.kisoft.easybus.rabbitmq.test");
