@@ -32,12 +32,14 @@ If no name is given, then the name of the event class itself will be used as the
 Event Handlers can also be attached to specific queues, by using the ```@QueueName``` annotation
 
 ```java
-    @Event
+    @Handle(event=MyEvent.class)
     @QueueName("queue.name")
-    public class EventHandler{
+    public class MyEventHandler{
         ....
     }
 ```
+
+If no name is given, then the name of the handler class itself will be used as the queue name.
 
 ## Caveats
 
