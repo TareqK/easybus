@@ -32,7 +32,8 @@ import org.testcontainers.utility.DockerImageName;
  */
 public class RabbitMQBusImplTest {
 
-    private static EasyBus bus;
+    private static EasyBus sendingBus;
+    private static EasyBus receivingBus;
     private static RabbitMQContainer rabbitMqContainer;
 
     @BeforeClass
@@ -45,15 +46,17 @@ public class RabbitMQBusImplTest {
         factory.setPort(rabbitMqContainer.getAmqpPort());
         factory.setUsername("guest");
         factory.setPassword("guest");
-        Connection connection = factory.newConnection();
-        bus = new EasyBus(new RabbitMQBusImpl(connection));
-        bus.search("me.kisoft.easybus.rabbitmq.test");
+        Connection connection1 = factory.newConnection();
+        Connection connection2 = factory.newConnection();
+        sendingBus = new EasyBus(new RabbitMQBusImpl(connection1));
+        receivingBus = new EasyBus(new RabbitMQBusImpl(connection2));
+        receivingBus.search("me.kisoft.easybus.rabbitmq.test");
     }
 
     @Test(timeout = 10000)
     public void handleEvent() throws InterruptedException {
         RabbitMQTestEvent.handled = false;
-        bus.post(new RabbitMQTestEvent());
+        sendingBus.post(new RabbitMQTestEvent());
         while (!RabbitMQTestEvent.handled) {
             Thread.sleep(100);
         }
@@ -63,7 +66,7 @@ public class RabbitMQBusImplTest {
     @Test(timeout = 10000)
     public void handleNamedEvent() throws InterruptedException {
         RabbitMQNamedTestEvent.handled = false;
-        bus.post(new RabbitMQNamedTestEvent());
+        sendingBus.post(new RabbitMQNamedTestEvent());
         while (!RabbitMQNamedTestEvent.handled) {
             Thread.sleep(100);
         }
@@ -74,7 +77,7 @@ public class RabbitMQBusImplTest {
     public void multiEventHandlerTest() throws InterruptedException {
         RabbitMQTestEvent.handled = false;
         RabbitMQTestEvent.handled2 = false;
-        bus.post(new RabbitMQTestEvent());
+        sendingBus.post(new RabbitMQTestEvent());
         while (!RabbitMQTestEvent.handled) {
             Thread.sleep(100);
         }
@@ -87,6 +90,7 @@ public class RabbitMQBusImplTest {
 
     @AfterClass
     public static void cleanup() throws Exception {
-        bus.close();
+        sendingBus.close();
+        receivingBus.close();
     }
 }
