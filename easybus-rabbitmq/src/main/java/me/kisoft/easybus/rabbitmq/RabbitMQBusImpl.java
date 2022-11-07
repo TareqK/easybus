@@ -16,7 +16,6 @@
 package me.kisoft.easybus.rabbitmq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -25,22 +24,24 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
-import lombok.extern.java.Log;
 import me.kisoft.easybus.Bus;
 import me.kisoft.easybus.EventHandler;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author tareq
  */
-@Log
 public class RabbitMQBusImpl implements Bus {
 
+    private final Logger log = LoggerFactory.getLogger(RabbitMQBusImpl.class);
     private final Connection connection;
     private final ObjectMapper mapper = new ObjectMapper();
     private final Map<EventHandler, String> tagMap = new HashMap<>();
     private final Map<EventHandler, Channel> channelMap = new HashMap<>();
+    private final Map<String, Boolean> exchangeExistanceMap = new HashMap<>();
 
     public RabbitMQBusImpl(Connection connection) {
         this.connection = connection;
@@ -59,6 +60,11 @@ public class RabbitMQBusImpl implements Bus {
     @Override
     public void post(Object object) {
         try ( Channel channel = this.connection.createChannel()) {
+            String exchangeName = getExcahngeName(object.getClass());
+            if (!exchangeExistanceMap.getOrDefault(exchangeName, Boolean.FALSE)) {
+                channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
+                exchangeExistanceMap.put(exchangeName, Boolean.TRUE);
+            }
             channel.basicPublish(getExcahngeName(object.getClass()), "all", null, mapper.writer().writeValueAsBytes(object));
         } catch (IOException | TimeoutException ex) {
             throw new RuntimeException(ex);
@@ -92,14 +98,14 @@ public class RabbitMQBusImpl implements Bus {
                 try {
                     channel.basicCancel(tag);
                 } catch (IOException ex) {
-                    log.severe(ex.getMessage());
+                    log.debug(ex.getMessage());
                 }
             });
             channelMap.values().forEach(usedChannel -> {
                 try {
                     usedChannel.close();
                 } catch (IOException | TimeoutException ex) {
-                    log.severe(ex.getMessage());
+                    log.error(ex.getMessage());
                 }
             });
         } catch (IOException | TimeoutException ex) {
@@ -117,7 +123,7 @@ public class RabbitMQBusImpl implements Bus {
             channel.queueDeclare(queueName, false, false, false, null).getQueue();
             channel.queueBind(queueName, exchangeName, RandomStringUtils.randomAlphabetic(30));
             String tag = channel.basicConsume(getQueueName(handler.getHandler()), (consumerTag, delivery) -> {
-                log.fine(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
+                log.debug(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
                 handler.handle(mapper.reader().forType(handler.getEventClass()).readValue(delivery.getBody()));
                 channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
             }, consumerTag -> {
@@ -133,11 +139,14 @@ public class RabbitMQBusImpl implements Bus {
     public void removeHandler(EventHandler handler) {
         try {
             String consumerTag = tagMap.get(handler);
-            Channel channel = channelMap.get(handler);
-            channel.basicCancel(consumerTag);
-            channel.close();
+            try ( Channel channel = channelMap.get(handler)) {
+                channel.basicCancel(consumerTag);
+            }
         } catch (IOException | TimeoutException ex) {
             throw new RuntimeException(ex);
+        } finally {
+            channelMap.remove(handler);
+            tagMap.remove(handler);
         }
     }
 
@@ -147,7 +156,7 @@ public class RabbitMQBusImpl implements Bus {
             try {
                 channel.close();
             } catch (IOException | TimeoutException ex) {
-                log.severe(ex.getMessage());
+                log.error(ex.getMessage());
             }
         });
         connection.close();

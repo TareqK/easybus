@@ -8,15 +8,16 @@ package me.kisoft.easybus;
 import java.lang.reflect.Method;
 import java.util.Objects;
 import lombok.Getter;
-import lombok.extern.java.Log;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author tareq
  */
-@Log
 public class EventHandler {
 
+    private final Logger log = LoggerFactory.getLogger(EventHandler.class);
     private static final String NO_ANNOTATION = "Handler of type %s Must have the @Handle annotation";
     private static final String NO_METHOD = "Handler of type %s Must have the public method 'handle' with parameter type %s";
     private static final String NO_CLASS = "Handler of type %s is missing the target event class";
@@ -66,7 +67,7 @@ public class EventHandler {
         try {
             this.handlerMethod.invoke(this.handler, event);
         } catch (Throwable ex) {
-            log.severe(ex.getMessage());
+            log.error(ex.getMessage());
             throw new RuntimeException(ex);
         }
 
@@ -108,7 +109,5 @@ public class EventHandler {
         }
         return true;
     }
-    
-    
 
 }

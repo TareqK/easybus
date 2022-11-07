@@ -25,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 import me.kisoft.easybus.Bus;
 import me.kisoft.easybus.EventHandler;
 import org.jongo.Jongo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -32,6 +34,7 @@ import org.jongo.Jongo;
  */
 public class MongodbBusImpl implements Bus {
 
+    private final Logger log = LoggerFactory.getLogger(MongodbBusImpl.class);
     private final ScheduledExecutorService pool;
     private final long pollTime;
     private final Map<EventHandler, ScheduledFuture> futureMap = new HashMap<>();

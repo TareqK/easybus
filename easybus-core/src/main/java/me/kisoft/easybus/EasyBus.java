@@ -6,21 +6,21 @@
 package me.kisoft.easybus;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.logging.Level;
-import lombok.extern.java.Log;
 import org.reflections.Reflections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author tareq
  */
-@Log
 public class EasyBus {
-
+    
+    private final Logger log = LoggerFactory.getLogger(EasyBus.class);
     private static final String NO_EVENT_CLASS_ERROR = "Error in Class : %s : No Event Class Specified.";
     private static final String EVENT_CLASS_NOT_ANNOTATED = "Error in Class : %s : Event Class : %s :  Not annotated with @Event";
     private static final String NO_METHOD_DEFINED_ERROR = "Error in Class : %s : 'handle' method for Specified Event type : %s : not defined";
-
+    
     private final Bus bus;
 
     /**
@@ -29,7 +29,7 @@ public class EasyBus {
     public EasyBus() {
         bus = new MemoryBusImpl();
     }
-
+    
     public EasyBus(Bus bus) {
         this.bus = bus;
     }
@@ -48,7 +48,7 @@ public class EasyBus {
      */
     public void post(Object event) {
         if (event != null) {
-            log.log(Level.FINE, "Event Thrown : {0}", event.getClass().getCanonicalName());
+            log.debug(String.format("Event Thrown : %s", event.getClass().getCanonicalName()));
             bus.post(event);
         }
     }
@@ -91,7 +91,7 @@ public class EasyBus {
      */
     public final EasyBus search(Reflections r) {
         for (Class clazz : r.getTypesAnnotatedWith(Handle.class)) {
-
+            
             try {
                 Object o = clazz.getConstructor().newInstance();
                 if (o.getClass().getAnnotation(Handle.class).event() == null) {
@@ -106,13 +106,13 @@ public class EasyBus {
                     }
                 }
                 this.addHandler(new EventHandler(o));
-                log.log(Level.INFO, "Added Event Handler {0}", clazz.getSimpleName());
+                log.info(String.format("Added Event Handler %s", clazz.getSimpleName()));
             } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                log.log(Level.SEVERE, null, ex);
+                log.error(ex.getMessage());
                 throw new RuntimeException(ex);
             }
         }
-
+        
         return this;
     }
 
@@ -133,9 +133,9 @@ public class EasyBus {
     public void removeHandler(EventHandler handler) {
         bus.removeHandler(handler);
     }
-
+    
     public void close() throws Exception {
         bus.close();
     }
-
+    
 }

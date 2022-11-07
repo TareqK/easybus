@@ -17,18 +17,18 @@ package me.kisoft.easybus.mongodb;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Date;
-import java.util.logging.Level;
-import lombok.extern.java.Log;
 import me.kisoft.easybus.EventHandler;
 import org.jongo.Jongo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author tareq
  */
-@Log
 public class MongodbCollectionPollRunnable implements Runnable {
 
+    private final Logger log = LoggerFactory.getLogger(MongodbCollectionPollRunnable.class);
     private final EventHandler handler;
     private final Jongo jongo;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -63,17 +63,17 @@ public class MongodbCollectionPollRunnable implements Runnable {
                             .as(MongodbEvent.class);
 
                 } catch (RuntimeException ex) {
-                    log.fine(ex.getMessage());
+                    log.debug(ex.getMessage());
                     event = this.jongo.getCollection(handler.getEventClassName())
                             .findAndModify("{eventId:#}", event.getEventId())
                             .with("{$set:{processing:false,handled:false,lastAccess:#}}", new Date())
                             .as(MongodbEvent.class);
-                    log.log(Level.FINE, "Re-Submitting event with id : {0}", event.getEventId());
+                    log.debug(String.format("Re-Submitting event with id : %s", event.getEventId()));
                 }
 
             }
         } catch (IllegalArgumentException ex) {
-            log.severe(ex.getMessage());
+            log.error(ex.getMessage());
         }
     }
 
