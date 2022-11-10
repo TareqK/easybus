@@ -7,12 +7,13 @@ import java.lang.annotation.Target;
 
 /**
  * An annotation to specify the rabbitMQ queue name
+ *
  * @author tareq
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface QueueName {
-    
+
     public String value();
-    
+
 }

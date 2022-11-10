@@ -63,54 +63,20 @@ public class RabbitMQBusImpl implements Bus {
             String exchangeName = getExcahngeName(object.getClass());
             if (!exchangeExistanceMap.getOrDefault(exchangeName, Boolean.FALSE)) {
                 channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
+                log.debug(String.format("Declared Exchange %s", exchangeName));
                 exchangeExistanceMap.put(exchangeName, Boolean.TRUE);
             }
+            log.debug(String.format("Published Message to  Exchange %s", exchangeName));
             channel.basicPublish(getExcahngeName(object.getClass()), "all", null, mapper.writer().writeValueAsBytes(object));
         } catch (IOException | TimeoutException ex) {
             throw new RuntimeException(ex);
         }
     }
 
-    private String getQueueName(Object object) {
-        return this.getQueueName(object.getClass());
-    }
-
-    private String getQueueName(Class clazz) {
-        QueueName queueName = (QueueName) clazz.getAnnotation(QueueName.class);
-        if (queueName != null) {
-            return queueName.value();
-        }
-        return clazz.getSimpleName();
-    }
-
-    private String getExcahngeName(Class clazz) {
-        ExchangeName exchangeName = (ExchangeName) clazz.getAnnotation(ExchangeName.class);
-        if (exchangeName != null) {
-            return exchangeName.value();
-        }
-        return clazz.getSimpleName();
-    }
-
     @Override
     public void clear() {
-        try ( Channel channel = this.connection.createChannel()) {
-            tagMap.values().forEach(tag -> {
-                try {
-                    channel.basicCancel(tag);
-                } catch (IOException ex) {
-                    log.debug(ex.getMessage());
-                }
-            });
-            channelMap.values().forEach(usedChannel -> {
-                try {
-                    usedChannel.close();
-                } catch (IOException | TimeoutException ex) {
-                    log.error(ex.getMessage());
-                }
-            });
-        } catch (IOException | TimeoutException ex) {
-            throw new RuntimeException(ex);
-        }
+        clearTags();
+        clearChannels();
     }
 
     @Override
@@ -119,6 +85,13 @@ public class RabbitMQBusImpl implements Bus {
         String queueName = getQueueName(handler.getHandler());
         try {
             Channel channel = this.connection.createChannel();
+            channel.addShutdownListener(cause -> {
+                if (cause.isHardError()) {
+                    log.error(String.format("Channel for Queue(Event) Handler %s was closed : %s", queueName, cause.getMessage()));
+                } else {
+                    log.warn(String.format("Channel for Queue(Event) Handler %s was closed normally : %s", queueName, cause.getMessage()));
+                }
+            });
             channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
             channel.queueDeclare(queueName, false, false, false, null).getQueue();
             channel.queueBind(queueName, exchangeName, RandomStringUtils.randomAlphabetic(30));
@@ -127,6 +100,7 @@ public class RabbitMQBusImpl implements Bus {
                 handler.handle(mapper.reader().forType(handler.getEventClass()).readValue(delivery.getBody()));
                 channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
             }, consumerTag -> {
+                log.debug(String.format("Cancelling Consumer with Tag %s for Queue %s", consumerTag, queueName));
             });
             tagMap.put(handler, tag);
             channelMap.put(handler, channel);
@@ -152,13 +126,60 @@ public class RabbitMQBusImpl implements Bus {
 
     @Override
     public void close() throws IOException {
-        channelMap.values().forEach(channel -> {
-            try {
-                channel.close();
-            } catch (IOException | TimeoutException ex) {
-                log.error(ex.getMessage());
-            }
-        });
+        clear();
         connection.close();
     }
+
+    private String getQueueName(Object object) {
+        return this.getQueueName(object.getClass());
+    }
+
+    private String getQueueName(Class clazz) {
+        QueueName queueName = (QueueName) clazz.getAnnotation(QueueName.class);
+        if (queueName != null) {
+            return queueName.value();
+        }
+        return clazz.getSimpleName();
+    }
+
+    private String getExcahngeName(Class clazz) {
+        ExchangeName exchangeName = (ExchangeName) clazz.getAnnotation(ExchangeName.class);
+        if (exchangeName != null) {
+            return exchangeName.value();
+        }
+        return clazz.getSimpleName();
+    }
+
+    private void clearChannels() {
+        try {
+            channelMap.values().forEach(usedChannel -> {
+                try {
+                    usedChannel.close();
+                } catch (IOException | TimeoutException ex) {
+                    log.warn(String.format("Failed to close channel %s : %s", usedChannel.getChannelNumber(), ex.getMessage()));
+                }
+            });
+        } catch (Exception ex) {
+            log.error(ex.getMessage());
+        } finally {
+            channelMap.clear();
+        }
+    }
+
+    private void clearTags() {
+        try ( Channel channel = this.connection.createChannel()) {
+            tagMap.values().forEach(tag -> {
+                try {
+                    channel.basicCancel(tag);
+                } catch (IOException ex) {
+                    log.warn(String.format("Failed to close tag %s : %s", tag, ex.getMessage()));
+                }
+            });
+        } catch (IOException | TimeoutException ex) {
+            log.error(ex.getMessage());
+        } finally {
+            tagMap.clear();
+        }
+    }
+
 }
