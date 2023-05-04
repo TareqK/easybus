@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,16 +38,6 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         this.connection = connection;
     }
 
-    public RabbitMQBackingBusImpl() {
-        try {
-            ConnectionFactory factory = new ConnectionFactory();
-            factory.setHost("localhost");
-            this.connection = factory.newConnection();
-        } catch (IOException | TimeoutException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
-
     @Override
     public void post(Object object) {
         try (Channel channel = this.connection.createChannel()) {
@@ -78,11 +67,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
     }
 
-    private String getQueueName(Object object) {
-        return this.getQueueName(object.getClass());
+    public static String getQueueName(Object object) {
+        return getQueueName(object.getClass());
     }
 
-    private String getQueueName(Class clazz) {
+    public static String getQueueName(Class clazz) {
         QueueName queueName = (QueueName) clazz.getAnnotation(QueueName.class);
         if (queueName != null) {
             return queueName.value();
@@ -90,7 +79,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         return clazz.getSimpleName();
     }
 
-    private String getExcahngeName(Class clazz) {
+    public static String getExcahngeName(Class clazz) {
         ExchangeName exchangeName = (ExchangeName) clazz.getAnnotation(ExchangeName.class);
         if (exchangeName != null) {
             return exchangeName.value();
@@ -153,9 +142,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 Object receivedEvent = reader.readValue(delivery.getBody());
                 memoryBusImpl.post(receivedEvent);
                 channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-            }, consumerTag -> {
-                log.debug(String.format("Cancelling Consumer with Tag %s for Queue %s", consumerTag, queueName));
-            });
+            }, null, null);
             tagMap.put(eventClass, tag);
             channelMap.put(eventClass, channel);
             memoryBusImpl.addHandler(eventClass, handler);

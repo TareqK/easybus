@@ -1,11 +1,18 @@
 package me.kisoft.easybus.rabbitmq.test;
 
+import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
 import me.kisoft.easybus.EasyBus;
 import me.kisoft.easybus.rabbitmq.RabbitMQBackingBusImpl;
+import static me.kisoft.easybus.rabbitmq.RabbitMQBackingBusImpl.getQueueName;
+import org.junit.After;
 import org.junit.AfterClass;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.testcontainers.containers.RabbitMQContainer;
@@ -20,13 +27,19 @@ public class RabbitMQBusImplTest {
     private static EasyBus sendingBus;
     private static EasyBus receivingBus;
     private static RabbitMQContainer rabbitMqContainer;
+    private static ConnectionFactory factory;
 
     @BeforeClass
-    public static void scanForEvents() throws Exception {
+    public static void setupContainer() throws Exception {
         rabbitMqContainer = new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.11.0"))
                 .withUser("guest", "guest");
         rabbitMqContainer.start();
-        ConnectionFactory factory = new ConnectionFactory();
+
+    }
+
+    @Before
+    public void setup() throws IOException, TimeoutException {
+        factory = new ConnectionFactory();
         factory.setHost(rabbitMqContainer.getHost());
         factory.setPort(rabbitMqContainer.getAmqpPort());
         factory.setUsername("guest");
@@ -36,6 +49,12 @@ public class RabbitMQBusImplTest {
         sendingBus = new EasyBus(new RabbitMQBackingBusImpl(connection1));
         receivingBus = new EasyBus(new RabbitMQBackingBusImpl(connection2));
         receivingBus.search("me.kisoft.easybus.rabbitmq.test");
+    }
+
+    @After
+    public void teardown() throws Exception {
+        sendingBus.close();
+        receivingBus.close();
     }
 
     @Test(timeout = 10000)
@@ -73,9 +92,4 @@ public class RabbitMQBusImplTest {
         assertTrue(RabbitMQTestEvent.handled2);
     }
 
-    @AfterClass
-    public static void cleanup() throws Exception {
-        sendingBus.close();
-        receivingBus.close();
-    }
 }
