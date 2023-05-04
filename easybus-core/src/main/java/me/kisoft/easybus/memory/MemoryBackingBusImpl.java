@@ -1,18 +1,3 @@
-/*
- * Copyright 2020 tareq.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package me.kisoft.easybus.memory;
 
 import java.util.HashMap;
@@ -22,19 +7,19 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
-import me.kisoft.easybus.Bus;
+import me.kisoft.easybus.BackingBus;
 import me.kisoft.easybus.Handler;
 
 /**
  *
  * @author tareq
  */
-public class MemoryBusImpl extends Bus {
+public class MemoryBackingBusImpl extends BackingBus {
 
     private final Map<Class, Set<Handler<Object>>> handlerMap = new HashMap<>();
     private final ExecutorService pool;
 
-    public MemoryBusImpl() {
+    public MemoryBackingBusImpl() {
         pool = Executors.newCachedThreadPool();
     }
 
@@ -58,6 +43,14 @@ public class MemoryBusImpl extends Bus {
         handlerMap.get(eventClass).add(handler);
     }
 
+    /**
+     * A Method that determines if the event should be handled using the thread
+     * pool or in the current thread and handles it accordingly.
+     *
+     * @param <T> the event type
+     * @param handler the event handler
+     * @param event the event
+     */
     private <T extends Object> void doHandle(Handler<T> handler, T event) {
         if (handler.getClass().isAnnotationPresent(AsyncHandler.class)) {
             pool.submit(() -> this.handle(event, handler));
@@ -78,4 +71,10 @@ public class MemoryBusImpl extends Bus {
         }
         eventHandlers.stream().forEach(handler -> doHandle(handler, event));
     }
+
+    @Override
+    public void close() throws Exception {
+        pool.shutdown();
+    }
+
 }

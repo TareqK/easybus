@@ -26,11 +26,11 @@ import com.rabbitmq.client.ConnectionFactory;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeoutException;
-import me.kisoft.easybus.Bus;
+import me.kisoft.easybus.BackingBus;
 import me.kisoft.easybus.Handler;
-import me.kisoft.easybus.memory.MemoryBusImpl;
-import org.apache.commons.lang3.RandomStringUtils;
+import me.kisoft.easybus.memory.MemoryBackingBusImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,9 +38,9 @@ import org.slf4j.LoggerFactory;
  *
  * @author tareq
  */
-public class RabbitMQBusImpl extends Bus {
+public class RabbitMQBackingBusImpl extends BackingBus {
 
-    private final Logger log = LoggerFactory.getLogger(RabbitMQBusImpl.class);
+    private final Logger log = LoggerFactory.getLogger(RabbitMQBackingBusImpl.class);
     private final Connection connection;
     private final ObjectMapper mapper = new ObjectMapper()
             .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
@@ -48,13 +48,13 @@ public class RabbitMQBusImpl extends Bus {
     private final Map<Class, String> tagMap = new HashMap<>();
     private final Map<Class, Channel> channelMap = new HashMap<>();
     private final Map<String, Boolean> exchangeExistanceMap = new HashMap<>();
-    private final MemoryBusImpl memoryBusImpl = new MemoryBusImpl();
+    private final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
 
-    public RabbitMQBusImpl(Connection connection) {
+    public RabbitMQBackingBusImpl(Connection connection) {
         this.connection = connection;
     }
 
-    public RabbitMQBusImpl() {
+    public RabbitMQBackingBusImpl() {
         try {
             ConnectionFactory factory = new ConnectionFactory();
             factory.setHost("localhost");
@@ -161,7 +161,7 @@ public class RabbitMQBusImpl extends Bus {
 
             channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
             channel.queueDeclare(queueName, false, false, false, null).getQueue();
-            channel.queueBind(queueName, exchangeName, RandomStringUtils.randomAlphabetic(30));
+            channel.queueBind(queueName, exchangeName, UUID.randomUUID().toString());
             String tag = channel.basicConsume(queueName, (consumerTag, delivery) -> {
                 log.debug(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
                 Object receivedEvent = reader.readValue(delivery.getBody());

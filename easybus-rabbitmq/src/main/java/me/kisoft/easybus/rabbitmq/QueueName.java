@@ -6,7 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * An annotation to specify the rabbitMQ queue name
+ * An annotation to specify the rabbitMQ queue name.
  *
  * @author tareq
  */

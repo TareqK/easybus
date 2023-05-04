@@ -1,18 +1,12 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package me.kisoft.easybus.test;
 
 import me.kisoft.easybus.EasyBus;
-import me.kisoft.easybus.memory.MemoryBusImpl;
-import me.kisoft.easybus.test.events.ChildClassEvent;
-import me.kisoft.easybus.test.events.ParentClassEvent;
-import me.kisoft.easybus.test.events.SyncEvent;
+import me.kisoft.easybus.memory.MemoryBackingBusImpl;
+import me.kisoft.easybus.test.events.TestChildClassEvent;
+import me.kisoft.easybus.test.events.TestParentClassEvent;
+import me.kisoft.easybus.test.events.TestSyncEvent;
 import me.kisoft.easybus.test.events.TestAsyncEvent;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -22,7 +16,7 @@ import org.junit.Test;
  */
 public class EasyBusTest {
 
-    MemoryBusImpl memBus = new MemoryBusImpl();
+    MemoryBackingBusImpl memBus = new MemoryBackingBusImpl();
     EasyBus bus = new EasyBus(memBus);
 
     @Before
@@ -44,34 +38,34 @@ public class EasyBusTest {
 
     @Test
     public void subClassEventTest() {
-        ChildClassEvent.checked = false;
-        ChildClassEvent.checkedSpecific = false;
-        ParentClassEvent.checked = false;
+        TestChildClassEvent.checked = false;
+        TestChildClassEvent.checkedSpecific = false;
+        TestParentClassEvent.checked = false;
         bus.search("me.kisoft.easybus.test.handlers");
-        bus.post(new ChildClassEvent());
-        assertEquals(ChildClassEvent.checked, true);
-        assertEquals(ChildClassEvent.checkedSpecific, true);
-        assertEquals(ParentClassEvent.checked, true);
+        bus.post(new TestChildClassEvent());
+        assertEquals(TestChildClassEvent.checked, true);
+        assertEquals(TestChildClassEvent.checkedSpecific, true);
+        assertEquals(TestParentClassEvent.checked, true);
     }
 
     @Test
     public void specificityHandlerTest() {
-        ChildClassEvent.checked = false;
-        ChildClassEvent.checkedSpecific = false;
-        ParentClassEvent.checked = false;
+        TestChildClassEvent.checked = false;
+        TestChildClassEvent.checkedSpecific = false;
+        TestParentClassEvent.checked = false;
         bus.search("me.kisoft.easybus.test.handlers");
-        bus.post(new ParentClassEvent());
-        assertEquals(ChildClassEvent.checked, true);
-        assertEquals(ChildClassEvent.checkedSpecific, false);
-        assertEquals(ParentClassEvent.checked, true);
+        bus.post(new TestParentClassEvent());
+        assertEquals(TestChildClassEvent.checked, true);
+        assertEquals(TestChildClassEvent.checkedSpecific, false);
+        assertEquals(TestParentClassEvent.checked, true);
     }
 
     @Test
     public void syncEventTest() {
         bus.search("me.kisoft.easybus.test.handlers");
-        SyncEvent.checked = false;
-        bus.post(new SyncEvent());
-        assertEquals(SyncEvent.checked, true);
+        TestSyncEvent.checked = false;
+        bus.post(new TestSyncEvent());
+        assertEquals(TestSyncEvent.checked, true);
     }
 
     @Test(timeout = 1000)

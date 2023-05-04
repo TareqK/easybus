@@ -1,11 +1,6 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package me.kisoft.easybus;
 
-import me.kisoft.easybus.memory.MemoryBusImpl;
+import me.kisoft.easybus.memory.MemoryBackingBusImpl;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -20,28 +15,25 @@ import org.slf4j.LoggerFactory;
 public class EasyBus {
 
     private final Logger log = LoggerFactory.getLogger(EasyBus.class);
-    private static final String NO_EVENT_CLASS_ERROR = "Error in Class : %s : No Event Class Specified.";
-    private static final String EVENT_CLASS_NOT_ANNOTATED = "Error in Class : %s : Event Class : %s :  Not annotated with @Event";
-    private static final String NO_METHOD_DEFINED_ERROR = "Error in Class : %s : 'handle' method for Specified Event type : %s : not defined";
     private static final String REFLECTION_ERROR = "Reflection Error in Class : %s : %s";
-    private final Bus bus;
+    private final BackingBus backingBus;
 
     /**
      * Creates a new EventBus
      */
     public EasyBus() {
-        bus = new MemoryBusImpl();
+        backingBus = new MemoryBackingBusImpl();
     }
 
-    public EasyBus(Bus bus) {
-        this.bus = bus;
+    public EasyBus(BackingBus backingBus) {
+        this.backingBus = backingBus;
     }
 
     /**
      * Removes all handlers from the event bus
      */
     public void clear() {
-        bus.clear();
+        backingBus.clear();
     }
 
     /**
@@ -52,7 +44,7 @@ public class EasyBus {
     public void post(Object event) {
         if (event != null) {
             log.debug(String.format("Event Thrown : %s", event.getClass().getCanonicalName()));
-            bus.post(event);
+            backingBus.post(event);
         }
     }
 
@@ -104,6 +96,14 @@ public class EasyBus {
         return this;
     }
 
+    /**
+     * Adds a new handler for all the specified event types it handlers.
+     * Operation is verified and type checked, and will only work on classes
+     * that implement Handler
+     *
+     * @param handler a handler object
+     * @return the current easybus instance
+     */
     public EasyBus addHandler(Handler handler) {
         Type[] genericInterfaces = handler.getClass().getGenericInterfaces();
         for (Type type : genericInterfaces) {
@@ -115,7 +115,6 @@ public class EasyBus {
             if (!(parameterizedType.getRawType() == Handler.class)) {
                 continue;
             }
-            
 
             Type eventType = parameterizedType.getActualTypeArguments()[0];
             if (!(eventType instanceof Class)) {
@@ -123,14 +122,14 @@ public class EasyBus {
             }
 
             Class eventClass = (Class) eventType;
-            bus.addHandler(eventClass, handler);
+            backingBus.addHandler(eventClass, handler);
 
         }
         return this;
     }
 
     public void close() throws Exception {
-        bus.close();
+        backingBus.close();
     }
 
 }

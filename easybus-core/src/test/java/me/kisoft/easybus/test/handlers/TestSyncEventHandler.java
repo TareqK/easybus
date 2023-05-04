@@ -6,19 +6,16 @@
 package me.kisoft.easybus.test.handlers;
 
 import me.kisoft.easybus.Handler;
-import me.kisoft.easybus.memory.AsyncHandler;
-import me.kisoft.easybus.test.events.TestAsyncEvent;
-
+import me.kisoft.easybus.test.events.TestSyncEvent;
 
 /**
  *
  * @author tareq
  */
-@AsyncHandler
-public class TestAsyncHandler implements Handler<TestAsyncEvent> {
-    
+public class TestSyncEventHandler implements Handler<TestSyncEvent> {
+
     @Override
-    public void handle(TestAsyncEvent event){
-        TestAsyncEvent.checked = true;
+    public void handle(TestSyncEvent event) {
+        TestSyncEvent.checked = true;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 tareq.
+ * Copyright 2021 tareq.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,12 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package me.kisoft.easybus.negativetest.events;
+package me.kisoft.easybus.test.handlers;
+
+import me.kisoft.easybus.Handler;
+import me.kisoft.easybus.test.events.TestParentClassEvent;
 
 /**
  *
  * @author tareq
  */
-public class NotAnnotatedEvent {
-    
+public class TestParentClassEventHandler implements Handler<TestParentClassEvent> {
+
+    @Override
+    public void handle(TestParentClassEvent event) {
+        TestParentClassEvent.checked = true;
+        TestParentClassEvent.doChildCheck();
+    }
 }
