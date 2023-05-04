@@ -23,7 +23,6 @@
         <javadoc.plugin.version>3.1.1</javadoc.plugin.version>
     </properties>
     <modules>
-        <!-- <module>compiler-plugin-java-9</module> --> <!-- We haven't upgraded to java 9. -->   
         <module>easybus-core</module>
         <module>easybus-rabbitmq</module>
     </modules>
@@ -31,8 +30,8 @@
     <description>Simple, No Frills Event Bus for Java</description>
     <licenses>
         <license>
-            <name>Apache License, Version 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <name>MIT License</name>
+            <url>http://www.opensource.org/licenses/mit-license.php</url>
             <distribution>repo</distribution>
         </license>
     </licenses>
