@@ -15,13 +15,9 @@
  */
 package me.kisoft.easybus.rabbitmq.test;
 
-import me.kisoft.easybus.Event;
+import lombok.Data;
 
-/**
- *
- * @author tareq
- */
-@Event
+@Data
 public class RabbitMQTestEvent {
 
     public static boolean handled = false;

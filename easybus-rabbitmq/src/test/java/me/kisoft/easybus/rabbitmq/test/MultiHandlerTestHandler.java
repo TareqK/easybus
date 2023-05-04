@@ -15,14 +15,13 @@
  */
 package me.kisoft.easybus.rabbitmq.test;
 
-import me.kisoft.easybus.Handle;
+import me.kisoft.easybus.Handler;
 
 /**
  *
  * @author tareq
  */
-@Handle(event = RabbitMQTestEvent.class)
-public class MultiHandlerTestHandler {
+public class MultiHandlerTestHandler implements Handler<RabbitMQTestEvent>{
 
     public void handle(RabbitMQTestEvent event) {
         RabbitMQTestEvent.handled2 = true;

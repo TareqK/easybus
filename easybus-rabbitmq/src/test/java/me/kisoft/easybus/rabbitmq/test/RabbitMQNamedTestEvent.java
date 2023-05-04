@@ -15,16 +15,16 @@
  */
 package me.kisoft.easybus.rabbitmq.test;
 
-import me.kisoft.easybus.Event;
+import lombok.Data;
 import me.kisoft.easybus.rabbitmq.ExchangeName;
 
 /**
  *
  * @author tareq
  */
-@Event
 @ExchangeName("named.exchange")
-public class RabbitMQNamedTestEvent {
+@Data
+public class RabbitMQNamedTestEvent{
 
     public static boolean handled = false;
 }

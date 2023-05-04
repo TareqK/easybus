@@ -15,13 +15,13 @@
  */
 package me.kisoft.easybus.negativetest.events;
 
-import me.kisoft.easybus.Event;
+import me.kisoft.easybus.memory.AsyncHandler;
 
 /**
  *
  * @author tareq
  */
-@Event
+@AsyncHandler
 public class AnnotatedEvent {
     
 }

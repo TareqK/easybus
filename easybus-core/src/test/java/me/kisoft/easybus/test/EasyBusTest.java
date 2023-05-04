@@ -6,11 +6,11 @@
 package me.kisoft.easybus.test;
 
 import me.kisoft.easybus.EasyBus;
-import me.kisoft.easybus.MemoryBusImpl;
-import me.kisoft.easybus.test.events.AsyncEvent;
+import me.kisoft.easybus.memory.MemoryBusImpl;
 import me.kisoft.easybus.test.events.ChildClassEvent;
 import me.kisoft.easybus.test.events.ParentClassEvent;
 import me.kisoft.easybus.test.events.SyncEvent;
+import me.kisoft.easybus.test.events.TestAsyncEvent;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
@@ -27,7 +27,7 @@ public class EasyBusTest {
 
     @Before
     public void clearBus() {
-        bus.removeHandlers();
+        bus.clear();
     }
 
     @Test
@@ -77,32 +77,12 @@ public class EasyBusTest {
     @Test(timeout = 1000)
     public void asyncEventTest() throws InterruptedException {
         bus.search("me.kisoft.easybus.test.handlers");
-        AsyncEvent.checked = false;
-        bus.post(new AsyncEvent());
-        while (AsyncEvent.checked == false) {
+        TestAsyncEvent.checked = false;
+        bus.post(new TestAsyncEvent());
+        while (TestAsyncEvent.checked == false) {
             Thread.sleep(20);
         }
-        assertEquals(AsyncEvent.checked, true);
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void missingHandlerThrowsErrorTest() {
-        try {
-            bus.search("me.kisoft.easybus.negativetest2.handlers");
-        } catch (RuntimeException ex) {
-            assertTrue(ex.getMessage().contains("'handle' method for Specified Event type"));
-            throw ex;
-        }
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void missingEventAnnotationThrowsErrorTest() {
-        try {
-            bus.search("me.kisoft.easybus.negativetest1.handlers");
-        } catch (RuntimeException ex) {
-            assertTrue(ex.getMessage().contains("Not annotated with @Event"));
-            throw ex;
-        }
+        assertEquals(TestAsyncEvent.checked, true);
     }
 
 }

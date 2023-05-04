@@ -36,10 +36,10 @@ public class MongodbEvent {
     private String eventId = UUID.randomUUID().toString();
     private boolean handled = false;
     private boolean processing = false;
-    private Map data =null;
+    private Map data = null;
     private Date lastAccess = new Date();
-    
-    public MongodbEvent(Map data){
+
+    public MongodbEvent(Map data) {
         this.data = data;
     }
 }

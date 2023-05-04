@@ -1,8 +1,7 @@
 package me.kisoft.easybus.mongodb.test;
 
 import lombok.Data;
-import me.kisoft.easybus.Event;
-import org.apache.commons.lang3.RandomStringUtils;
+import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 
 /*
  * Copyright 2020 tareq.
@@ -23,7 +22,6 @@ import org.apache.commons.lang3.RandomStringUtils;
  *
  * @author tareq
  */
-@Event
 @Data
 public class MongodbTestEvent {
 

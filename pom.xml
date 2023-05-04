@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.kisoft</groupId>
     <artifactId>easybus-parent</artifactId>
-    <version>2.4.0</version>
+    <version>3.0.0-RC1</version>
     <name>EasyBus</name>
     <packaging>pom</packaging>
     <properties>
@@ -12,7 +12,7 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <reflections.version>0.9.11</reflections.version>
-        <lombok.version>1.18.12</lombok.version>
+        <lombok.version>1.18.26</lombok.version>
         <junit.version>4.13</junit.version>
         <apache.commons.version>3.10</apache.commons.version>
         <auto-service.version>1.0-rc2</auto-service.version>

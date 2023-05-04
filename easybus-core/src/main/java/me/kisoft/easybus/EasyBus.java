@@ -5,7 +5,10 @@
  */
 package me.kisoft.easybus;
 
+import me.kisoft.easybus.memory.MemoryBusImpl;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import org.reflections.Reflections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,12 +18,12 @@ import org.slf4j.LoggerFactory;
  * @author tareq
  */
 public class EasyBus {
-    
+
     private final Logger log = LoggerFactory.getLogger(EasyBus.class);
     private static final String NO_EVENT_CLASS_ERROR = "Error in Class : %s : No Event Class Specified.";
     private static final String EVENT_CLASS_NOT_ANNOTATED = "Error in Class : %s : Event Class : %s :  Not annotated with @Event";
     private static final String NO_METHOD_DEFINED_ERROR = "Error in Class : %s : 'handle' method for Specified Event type : %s : not defined";
-    
+    private static final String REFLECTION_ERROR = "Reflection Error in Class : %s : %s";
     private final Bus bus;
 
     /**
@@ -29,15 +32,15 @@ public class EasyBus {
     public EasyBus() {
         bus = new MemoryBusImpl();
     }
-    
+
     public EasyBus(Bus bus) {
         this.bus = bus;
     }
 
     /**
-     * Resets the event bus
+     * Removes all handlers from the event bus
      */
-    public void removeHandlers() {
+    public void clear() {
         bus.clear();
     }
 
@@ -90,52 +93,44 @@ public class EasyBus {
      * @return the current eventbus
      */
     public final EasyBus search(Reflections r) {
-        for (Class clazz : r.getTypesAnnotatedWith(Handle.class)) {
-            
+        for (Class<? extends Handler> clazz : r.getSubTypesOf(Handler.class)) {
             try {
-                Object o = clazz.getConstructor().newInstance();
-                if (o.getClass().getAnnotation(Handle.class).event() == null) {
-                    throw new IllegalArgumentException(String.format(NO_EVENT_CLASS_ERROR, o.getClass().getCanonicalName()));
-                } else if (o.getClass().getAnnotation(Handle.class).event().getAnnotation(Event.class) == null) {
-                    throw new IllegalArgumentException(String.format(EVENT_CLASS_NOT_ANNOTATED, o.getClass().getCanonicalName(), o.getClass().getAnnotation(Handle.class).event().getCanonicalName()));
-                } else {
-                    try {
-                        o.getClass().getMethod("handle", o.getClass().getAnnotation(Handle.class).event());
-                    } catch (NoSuchMethodException | SecurityException ex) {
-                        throw new IllegalArgumentException(String.format(NO_METHOD_DEFINED_ERROR, o.getClass().getCanonicalName(), o.getClass().getAnnotation(Handle.class).event().getCanonicalName()));
-                    }
-                }
-                this.addHandler(new EventHandler(o));
-                log.info(String.format("Added Event Handler %s", clazz.getSimpleName()));
+                Handler o = clazz.getConstructor().newInstance();
+                this.addHandler(o);
             } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                log.error(ex.getMessage());
-                throw new RuntimeException(ex);
+                throw new IllegalArgumentException(String.format(REFLECTION_ERROR, clazz.getCanonicalName(), ex.getMessage()));
             }
         }
-        
         return this;
     }
 
-    /**
-     * Add a handler to the event bus
-     *
-     * @param handler the handler to add
-     */
-    public void addHandler(EventHandler handler) {
-        bus.addHandler(handler);
+    public EasyBus addHandler(Handler handler) {
+        Type[] genericInterfaces = handler.getClass().getGenericInterfaces();
+        for (Type type : genericInterfaces) {
+            if (!(type instanceof ParameterizedType)) {
+                continue;
+            }
+            ParameterizedType parameterizedType = (ParameterizedType) type;
+
+            if (!(parameterizedType.getRawType() == Handler.class)) {
+                continue;
+            }
+            
+
+            Type eventType = parameterizedType.getActualTypeArguments()[0];
+            if (!(eventType instanceof Class)) {
+                continue;
+            }
+
+            Class eventClass = (Class) eventType;
+            bus.addHandler(eventClass, handler);
+
+        }
+        return this;
     }
 
-    /**
-     * Remove a handler from the event bus
-     *
-     * @param handler the handler to remove
-     */
-    public void removeHandler(EventHandler handler) {
-        bus.removeHandler(handler);
-    }
-    
     public void close() throws Exception {
         bus.close();
     }
-    
+
 }

@@ -5,13 +5,13 @@
  */
 package me.kisoft.easybus.test.events;
 
-import me.kisoft.easybus.Event;
+import me.kisoft.easybus.memory.AsyncHandler;
 
 /**
  *
  * @author tareq
  */
-@Event
+@AsyncHandler
 public class SyncEvent {
     public static boolean checked = false;
 }

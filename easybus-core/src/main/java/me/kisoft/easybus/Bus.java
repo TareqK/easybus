@@ -19,37 +19,36 @@ package me.kisoft.easybus;
  *
  * @author tareq
  */
-public interface Bus extends AutoCloseable {
+public abstract class Bus implements AutoCloseable {
 
     /**
      * Posts an object to the event bus.
      *
      * @param object the Object to post. Must have the annotation @Event to work
      * correctly
+     * @deprecated  because this should only be used internally or during implementing new busses
      */
-    void post(Object object);
+    @Deprecated
+    public abstract <T extends Object> void post(T object);
 
     /**
      * Clears all handlers from the event bus
      */
-    public void clear();
+    protected abstract void clear();
 
     /**
      * Adds a handler to the event bus
      *
      * @param handler the event bus handler to add
      */
-    public void addHandler(EventHandler handler);
+    protected abstract void addHandler(Class eventClass, Handler handler);
 
-    /**
-     * Removes a handler from the event bus
-     *
-     * @param handler the event bus handler to remove
-     */
-    public void removeHandler(EventHandler handler);
+    protected <T extends Object> void handle(T event, Handler<T> handler) {
+        handler.handle(event);
+    }
 
     @Override
-    public default void close() throws Exception {
+    public void close() throws Exception {
 
     }
 

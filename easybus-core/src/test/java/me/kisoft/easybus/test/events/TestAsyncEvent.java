@@ -5,14 +5,11 @@
  */
 package me.kisoft.easybus.test.events;
 
-import me.kisoft.easybus.Event;
-
 /**
  *
  * @author tareq
  */
-@Event
-public class AsyncEvent {
+public class TestAsyncEvent {
 
     public static boolean checked = false;
 

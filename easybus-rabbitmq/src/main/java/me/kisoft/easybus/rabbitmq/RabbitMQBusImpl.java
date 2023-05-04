@@ -15,7 +15,10 @@
  */
 package me.kisoft.easybus.rabbitmq;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -25,7 +28,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import me.kisoft.easybus.Bus;
-import me.kisoft.easybus.EventHandler;
+import me.kisoft.easybus.Handler;
+import me.kisoft.easybus.memory.MemoryBusImpl;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,14 +38,17 @@ import org.slf4j.LoggerFactory;
  *
  * @author tareq
  */
-public class RabbitMQBusImpl implements Bus {
+public class RabbitMQBusImpl extends Bus {
 
     private final Logger log = LoggerFactory.getLogger(RabbitMQBusImpl.class);
     private final Connection connection;
-    private final ObjectMapper mapper = new ObjectMapper();
-    private final Map<EventHandler, String> tagMap = new HashMap<>();
-    private final Map<EventHandler, Channel> channelMap = new HashMap<>();
+    private final ObjectMapper mapper = new ObjectMapper()
+            .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+    private final Map<Class, String> tagMap = new HashMap<>();
+    private final Map<Class, Channel> channelMap = new HashMap<>();
     private final Map<String, Boolean> exchangeExistanceMap = new HashMap<>();
+    private final MemoryBusImpl memoryBusImpl = new MemoryBusImpl();
 
     public RabbitMQBusImpl(Connection connection) {
         this.connection = connection;
@@ -59,7 +66,7 @@ public class RabbitMQBusImpl implements Bus {
 
     @Override
     public void post(Object object) {
-        try ( Channel channel = this.connection.createChannel()) {
+        try (Channel channel = this.connection.createChannel()) {
             String exchangeName = getExcahngeName(object.getClass());
             if (!exchangeExistanceMap.getOrDefault(exchangeName, Boolean.FALSE)) {
                 channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
@@ -77,51 +84,6 @@ public class RabbitMQBusImpl implements Bus {
     public void clear() {
         clearTags();
         clearChannels();
-    }
-
-    @Override
-    public void addHandler(EventHandler handler) {
-        String exchangeName = getExcahngeName(handler.getEventClass());
-        String queueName = getQueueName(handler.getHandler());
-        try {
-            Channel channel = this.connection.createChannel();
-            channel.addShutdownListener(cause -> {
-                if (cause.isHardError()) {
-                    log.error(String.format("Channel for Queue(Event) Handler %s was closed : %s", queueName, cause.getMessage()));
-                } else {
-                    log.warn(String.format("Channel for Queue(Event) Handler %s was closed normally : %s", queueName, cause.getMessage()));
-                }
-            });
-            channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
-            channel.queueDeclare(queueName, false, false, false, null).getQueue();
-            channel.queueBind(queueName, exchangeName, RandomStringUtils.randomAlphabetic(30));
-            String tag = channel.basicConsume(getQueueName(handler.getHandler()), (consumerTag, delivery) -> {
-                log.debug(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
-                handler.handle(mapper.reader().forType(handler.getEventClass()).readValue(delivery.getBody()));
-                channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-            }, consumerTag -> {
-                log.debug(String.format("Cancelling Consumer with Tag %s for Queue %s", consumerTag, queueName));
-            });
-            tagMap.put(handler, tag);
-            channelMap.put(handler, channel);
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
-
-    @Override
-    public void removeHandler(EventHandler handler) {
-        try {
-            String consumerTag = tagMap.get(handler);
-            try ( Channel channel = channelMap.get(handler)) {
-                channel.basicCancel(consumerTag);
-            }
-        } catch (IOException | TimeoutException ex) {
-            throw new RuntimeException(ex);
-        } finally {
-            channelMap.remove(handler);
-            tagMap.remove(handler);
-        }
     }
 
     @Override
@@ -167,7 +129,7 @@ public class RabbitMQBusImpl implements Bus {
     }
 
     private void clearTags() {
-        try ( Channel channel = this.connection.createChannel()) {
+        try (Channel channel = this.connection.createChannel()) {
             tagMap.values().forEach(tag -> {
                 try {
                     channel.basicCancel(tag);
@@ -179,6 +141,40 @@ public class RabbitMQBusImpl implements Bus {
             log.error(ex.getMessage());
         } finally {
             tagMap.clear();
+        }
+    }
+
+    @Override
+    protected void addHandler(Class eventClass, Handler handler) {
+        String exchangeName = getExcahngeName(eventClass);
+        String queueName = getQueueName(handler);
+        try {
+            Channel channel = this.connection.createChannel();
+            ObjectReader reader = mapper.reader().forType(eventClass);
+            channel.addShutdownListener(cause -> {
+                if (cause.isHardError()) {
+                    log.error(String.format("Channel for Queue(Event) Handler %s was closed : %s", queueName, cause.getMessage()));
+                } else {
+                    log.warn(String.format("Channel for Queue(Event) Handler %s was closed normally : %s", queueName, cause.getMessage()));
+                }
+            });
+
+            channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
+            channel.queueDeclare(queueName, false, false, false, null).getQueue();
+            channel.queueBind(queueName, exchangeName, RandomStringUtils.randomAlphabetic(30));
+            String tag = channel.basicConsume(queueName, (consumerTag, delivery) -> {
+                log.debug(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
+                Object receivedEvent = reader.readValue(delivery.getBody());
+                memoryBusImpl.post(receivedEvent);
+                channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+            }, consumerTag -> {
+                log.debug(String.format("Cancelling Consumer with Tag %s for Queue %s", consumerTag, queueName));
+            });
+            tagMap.put(eventClass, tag);
+            channelMap.put(eventClass, channel);
+            memoryBusImpl.addHandler(eventClass, handler);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
         }
     }
 
