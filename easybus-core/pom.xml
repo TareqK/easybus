@@ -3,16 +3,16 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.kisoft</groupId>
     <artifactId>easybus-core</artifactId>
-    <version>3.0.0-RC1</version>
+    <version>3.0.0</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>me.kisoft</groupId>
         <artifactId>easybus-parent</artifactId>
-        <version>3.0.0-RC1</version>
+        <version>3.0.0</version>
     </parent>
     
     <name>Easybus Core</name>
-    <description>Simple, No Frills Event Bus for Java - Core and Sample Implementation</description>
+    <description>Simple, No Frills Event Bus for Java - Core and In Memory Implementation</description>
 
     <dependencies>
         <dependency>
