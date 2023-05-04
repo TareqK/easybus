@@ -1,12 +1,12 @@
 package me.kisoft.easybus.test.events;
 
-import me.kisoft.easybus.memory.AsyncHandler;
+import me.kisoft.easybus.memory.HandleAsync;
 
 /**
  *
  * @author tareq
  */
-@AsyncHandler
+@HandleAsync
 public class TestParentClassEvent {
 
     public static boolean checked = false;

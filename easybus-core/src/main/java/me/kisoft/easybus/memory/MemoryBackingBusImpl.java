@@ -52,7 +52,7 @@ public class MemoryBackingBusImpl extends BackingBus {
      * @param event the event
      */
     private <T extends Object> void doHandle(Handler<T> handler, T event) {
-        if (handler.getClass().isAnnotationPresent(AsyncHandler.class)) {
+        if (handler.getClass().isAnnotationPresent(HandleAsync.class)) {
             pool.submit(() -> this.handle(event, handler));
         } else {
             this.handle(event, handler);
