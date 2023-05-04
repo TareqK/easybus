@@ -1,5 +1,6 @@
 package me.kisoft.easybus.memory;
 
+import com.google.common.base.Optional;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -37,10 +38,20 @@ public class MemoryBackingBusImpl extends BackingBus {
         if (!handlerMap.containsKey(eventClass)) {
             handlerMap.put(eventClass, new HashSet<>());
         }
-        if (handlerMap.get(eventClass).contains(handler)) {
-            return;
-        }
-        handlerMap.get(eventClass).add(handler);
+
+        /*
+        Paranoid code that handles an unreal scenario where java type erasure
+        doesnt exist or work, making sure that a handler is only ever added
+        once in the handler set of an event.
+         */
+        Handler handlerToAdd = handlerMap.get(eventClass)
+                .stream()
+                .filter(existingHandler -> existingHandler.getClass().equals(handler.getClass()))
+                .findAny()
+                .orElse(handler);
+
+        handlerMap.get(eventClass).add(handlerToAdd);
+
     }
 
     /**
@@ -66,10 +77,14 @@ public class MemoryBackingBusImpl extends BackingBus {
                 .filter(entry -> entry.getKey().isAssignableFrom(event.getClass()))
                 .flatMap(entry -> entry.getValue().stream())
                 .collect(Collectors.toSet());
-        if (eventHandlers == null || eventHandlers.isEmpty()) {
-            return;
-        }
-        eventHandlers.stream().forEach(handler -> doHandle(handler, event));
+
+        /*
+        Code in case the handler set is ever empty.
+         */
+        Optional.of(eventHandlers)
+                .or(new HashSet<>())
+                .stream()
+                .forEach(handler -> doHandle(handler, event));
     }
 
     @Override

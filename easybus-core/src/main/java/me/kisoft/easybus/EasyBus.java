@@ -112,18 +112,27 @@ public class EasyBus {
             }
             ParameterizedType parameterizedType = (ParameterizedType) type;
 
-            if (!(parameterizedType.getRawType() == Handler.class)) {
-                continue;
+            /*
+            This code may look wrong, but because of type erasure, 
+            a handler can only handle a single event, so no need to look 
+            more, as the compiler will not compile multi inheritence of the
+            same generic
+             */
+            if ((parameterizedType.getRawType() == Handler.class)) {
+                Type eventType = parameterizedType.getActualTypeArguments()[0];
+
+                /*
+                This is impossible to happen, but this is to make sure the compiler
+                doesnt raise flags
+                 */
+                if (!(eventType instanceof Class)) {
+                    continue;
+                }
+                Class eventClass = (Class) eventType;
+
+                backingBus.addHandler(eventClass, handler);
+                break;
             }
-
-            Type eventType = parameterizedType.getActualTypeArguments()[0];
-            if (!(eventType instanceof Class)) {
-                continue;
-            }
-
-            Class eventClass = (Class) eventType;
-            backingBus.addHandler(eventClass, handler);
-
         }
         return this;
     }

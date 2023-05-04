@@ -6,6 +6,7 @@ import me.kisoft.easybus.test.events.TestChildClassEvent;
 import me.kisoft.easybus.test.events.TestParentClassEvent;
 import me.kisoft.easybus.test.events.TestSyncEvent;
 import me.kisoft.easybus.test.events.TestAsyncEvent;
+import me.kisoft.easybus.test.events.TestNotHandledEvent;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,7 +22,15 @@ public class EasyBusTest {
 
     @Before
     public void clearBus() {
+        memBus = new MemoryBackingBusImpl();
+        bus = new EasyBus(memBus);
         bus.clear();
+
+    }
+
+    @Test
+    public void closeBusTestDoesntThrowException() throws Exception {
+        bus.close();
     }
 
     @Test
@@ -77,6 +86,17 @@ public class EasyBusTest {
             Thread.sleep(20);
         }
         assertEquals(TestAsyncEvent.checked, true);
+    }
+
+    @Test
+    public void testNotHandledEvent() {
+        bus.search("me.kisoft.easybus.test.handlers");
+        TestNotHandledEvent.checked = false;
+        bus.post(new TestNotHandledEvent());
+        assertEquals(TestNotHandledEvent.checked, false);
+        TestNotHandledEvent.checked = true;
+        bus.post(new TestNotHandledEvent());
+        assertEquals(TestNotHandledEvent.checked, true);
     }
 
 }

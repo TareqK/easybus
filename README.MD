@@ -27,8 +27,8 @@ that specific implementation which will also import easybus
 
 Afterwards, you will need to define your events and handlers. Events are simply
 POJOs(preferably Beans) and handlers are classes that implement ``Handler<T>``. A Handler
-may handle multiple event types by implementing ``Handler<T>`` multiple times with different
-arguments.
+may only handle a single event(and its subclasses) - this is due to type erasure in 
+java for generics that disallows multi inheritance.
 
 ### Defining Events
 
