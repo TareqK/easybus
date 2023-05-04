@@ -26,7 +26,7 @@ that specific implementation which will also import easybus
 ## Defining Events and Handlers
 
 Afterwards, you will need to define your events and handlers. Events are simply
-POJOs(preferably Beans) and handlers are classes that implement ``Handle<T>``. A Handler
+POJOs(preferably Beans) and handlers are classes that implement ``Handler<T>``. A Handler
 may handle multiple event types.
 
 ### Defining Events
