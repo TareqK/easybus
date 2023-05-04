@@ -2,13 +2,8 @@
 
 # EasyBus
 
-Easy bus is a simple, event bus for java designed for simplicity and
-java practices in mind
-
--   Annotation-Based
--   Sync and Async
--   Auto-Registration of Events
--   Compile-Time checking for events & handlers
+Easy bus is a simple, strictly typed event bus for java designed for simplicity 
+and minimalism.
 
 # Usage
 
@@ -30,33 +25,31 @@ that specific implementation which will also import easybus
 
 ## Defining Events and Handlers
 
-Afterwards, you will need to define your events and handlers using the `@Handle`
-and `@Event` annotations
+Afterwards, you will need to define your events and handlers. Events are simply
+POJOs(preferably Beans) and handlers are classes that implement ``Handle<T>``. A Handler
+may handle multiple event types.
 
 ### Defining Events
 
 ```java
-@Event
 public class MyEvent{
-  // your code here
+  // members and code here
 }
-
 ```
 
 ### Defining Handlers
 
 ```java
-@Handle(event=MyEvent.class)
-public class MyEventHandler{
+public class MyEventHandler implements Handler<MyEvent>{
+   
+   @Override
    public void handle(MyEvent event){
      // your code here
    }
 }
 ```
 
-Note that the `handle(MyEvent event)` method is mandatory, and it is the method that will be called by the event bus. The Method **MUST** be called `handle` and have the same type as your target event.
-
-### Adding Events and Handlers
+### Adding Handlers
 
 You must also create a new event bus and specify the packages or classloaders your
 events are in
@@ -67,7 +60,11 @@ bus.search("my.package.name")
 .search("my.second.package");
 ```
 
-You will probably need to wrap the event bus as a singleton or maintain some reference to it, but that is just you coding.
+you can also directly pass a ``Handler`` instance to ``EasyBus`` if you want to avoid
+all reflection - this is highly preferable for visibility, buy its up to preference 
+and use case and code design.
+
+You will also probably need to wrap the event bus as a singleton or maintain some reference to it, but that is just you coding.
 
 ### Posting Events
 
@@ -75,23 +72,25 @@ You will probably need to wrap the event bus as a singleton or maintain some ref
 bus.post(new MyEvent());
 ```
 
-### Async Handlers
+### Handle Async
 
-Async Handlers are defined in the same way as handlers, except that they run
-in a seperate thread from the current thread. This is more of a hint to the backing bus;
-its not mandatory to honor async execution.
+The default in-memory event bus(which is also used as a utility internal bus for other implementations)
+can either handle events in the current thread or delegate it to a thread pool. To mark an event 
+as delegated to a thread pool, use the ``@HandleAsync`` annotation on the event class
+
 
 ```java
-@Handle(event=MyEvent.class,async=true)
-public class MyEventAsyncHandler{
-   public void handle(MyEvent event){
-     // your code here
-   }
+@HandleAsync
+public class MyAsyncEvent{
+
 }
 ```
 
+Note that any errors that happen when handling this event are ignored, and as such, its 
+highly advised to only use this sparingly.
+
 ## Implementing a Backing Bus
 
-To implement a backing bus, all you need to do is implement the `me.kisoft.easybus.Bus` Interface, and when
-creating a new EasyBus, you need to use the `new EasyBus(Bus bus)` constructor to change the backing bus, or
+To implement a backing bus, all you need to do is implement the `me.kisoft.easybus.BackingBus` Interface, and when
+creating a new EasyBus, you need to use the `new EasyBus(BackingBus bus)` constructor to change the backing bus, or
 create your own factory
