@@ -6,6 +6,7 @@ package me.kisoft.easybus;
  * @author tareq
  * @param <T> the type of the event class to handle
  */
+@FunctionalInterface
 public interface Handler<T> {
 
     public void handle(T event);
