@@ -1,9 +1,9 @@
 package me.kisoft.easybus.memory;
 
-import com.google.common.base.Optional;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -82,7 +82,7 @@ public class MemoryBackingBusImpl extends BackingBus {
         Code in case the handler set is ever empty.
          */
         Optional.of(eventHandlers)
-                .or(new HashSet<>())
+                .orElse(new HashSet<>())
                 .stream()
                 .forEach(handler -> doHandle(handler, event));
     }
