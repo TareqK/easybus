@@ -13,13 +13,12 @@ RabbitMQ connection.
     factory.setPassword("guest");
     Connection connection = factory.newConnection();
     bus = new EasyBus(new RabbitMQBusImpl(connection));
-    bus.search("me.kisoft.easybus.rabbitmq.test");
+    //add your listeners
 ```
 
 Events can also be attached to specific exchanges, by using the ```@ExchangeName``` annotation
 
 ```java
-    @Event
     @ExchangeName("exchange.name")
     public class NamedEvent{
         ....
@@ -29,17 +28,16 @@ Events can also be attached to specific exchanges, by using the ```@ExchangeName
 If no name is given, then the name of the event class itself will be used as the exchange name.
 
 
-Event Handlers can also be attached to specific queues, by using the ```@QueueName``` annotation
+Event Listeners can also be attached to specific queues, by using the ```@QueueName``` annotation
 
 ```java
-    @Handle(event=MyEvent.class)
     @QueueName("queue.name")
-    public class MyEventHandler{
+    public class MyEventListener implements Listener<MyEvent>{
         ....
     }
 ```
 
-If no name is given, then the name of the handler class itself will be used as the queue name.
+If no name is given, then the name of the listener class itself will be used as the queue name.
 
 ## Caveats
 

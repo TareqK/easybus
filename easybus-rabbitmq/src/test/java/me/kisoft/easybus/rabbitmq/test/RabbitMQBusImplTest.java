@@ -1,16 +1,12 @@
 package me.kisoft.easybus.rabbitmq.test;
 
-import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 import me.kisoft.easybus.EasyBus;
 import me.kisoft.easybus.rabbitmq.RabbitMQBackingBusImpl;
-import static me.kisoft.easybus.rabbitmq.RabbitMQBackingBusImpl.getQueueName;
 import org.junit.After;
-import org.junit.AfterClass;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -23,20 +19,20 @@ import org.testcontainers.utility.DockerImageName;
  * @author tareq
  */
 public class RabbitMQBusImplTest {
-
+    
     private static EasyBus sendingBus;
     private static EasyBus receivingBus;
     private static RabbitMQContainer rabbitMqContainer;
     private static ConnectionFactory factory;
-
+    
     @BeforeClass
     public static void setupContainer() throws Exception {
         rabbitMqContainer = new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.11.0"))
                 .withUser("guest", "guest");
         rabbitMqContainer.start();
-
+        
     }
-
+    
     @Before
     public void setup() throws IOException, TimeoutException {
         factory = new ConnectionFactory();
@@ -48,15 +44,22 @@ public class RabbitMQBusImplTest {
         Connection connection2 = factory.newConnection();
         sendingBus = new EasyBus(new RabbitMQBackingBusImpl(connection1));
         receivingBus = new EasyBus(new RabbitMQBackingBusImpl(connection2));
-        receivingBus.search("me.kisoft.easybus.rabbitmq.test");
+        receivingBus.register(RabbitMQNamedTestListener.class)
+                .register(RabbitMQTestListener.class)
+                .register(MultiHandlerTestListener.class);
     }
-
+    
     @After
     public void teardown() throws Exception {
         sendingBus.close();
         receivingBus.close();
     }
-
+    
+    @Test
+    public void attemptSendingNull() {
+        sendingBus.post(null);
+    }
+    
     @Test(timeout = 10000)
     public void handleEvent() throws InterruptedException {
         RabbitMQTestEvent.handled = false;
@@ -66,7 +69,7 @@ public class RabbitMQBusImplTest {
         }
         assertTrue(RabbitMQTestEvent.handled);
     }
-
+    
     @Test(timeout = 10000)
     public void handleNamedEvent() throws InterruptedException {
         RabbitMQNamedTestEvent.handled = false;
@@ -76,7 +79,7 @@ public class RabbitMQBusImplTest {
         }
         assertTrue(RabbitMQNamedTestEvent.handled);
     }
-
+    
     @Test(timeout = 10000)
     public void multiEventHandlerTest() throws InterruptedException {
         RabbitMQTestEvent.handled = false;
@@ -91,5 +94,5 @@ public class RabbitMQBusImplTest {
         assertTrue(RabbitMQTestEvent.handled);
         assertTrue(RabbitMQTestEvent.handled2);
     }
-
+    
 }

@@ -1,16 +1,16 @@
 package me.kisoft.easybus.test.handlers;
 
-import me.kisoft.easybus.Handler;
 import me.kisoft.easybus.test.events.TestParentClassEvent;
+import me.kisoft.easybus.Listener;
 
 /**
  *
  * @author tareq
  */
-public class TestParentClassEventHandler implements Handler<TestParentClassEvent> {
+public class TestParentClassEventListener implements Listener<TestParentClassEvent> {
 
     @Override
-    public void handle(TestParentClassEvent event) {
+    public void on(TestParentClassEvent event) {
         TestParentClassEvent.checked = true;
         TestParentClassEvent.doChildCheck();
     }

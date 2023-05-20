@@ -1,16 +1,16 @@
 package me.kisoft.easybus.test.handlers;
 
-import me.kisoft.easybus.Handler;
 import me.kisoft.easybus.test.events.TestSyncEvent;
+import me.kisoft.easybus.Listener;
 
 /**
  *
  * @author tareq
  */
-public class TestSyncEventHandler implements Handler<TestSyncEvent> {
+public class TestSyncEventListener implements Listener<TestSyncEvent> {
 
     @Override
-    public void handle(TestSyncEvent event) {
+    public void on(TestSyncEvent event) {
         TestSyncEvent.checked = true;
     }
 }

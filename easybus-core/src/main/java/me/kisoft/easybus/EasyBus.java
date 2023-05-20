@@ -1,10 +1,9 @@
 package me.kisoft.easybus;
 
 import me.kisoft.easybus.memory.MemoryBackingBusImpl;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import org.reflections.Reflections;
+import static me.kisoft.easybus.Activator.DEFAULT_ACTIVATOR;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +14,7 @@ import org.slf4j.LoggerFactory;
 public class EasyBus {
 
     private final Logger log = LoggerFactory.getLogger(EasyBus.class);
-    private static final String REFLECTION_ERROR = "Reflection Error in Class : %s : %s";
+    private final Activator activator;
     private final BackingBus backingBus;
 
     /**
@@ -23,10 +22,22 @@ public class EasyBus {
      */
     public EasyBus() {
         backingBus = new MemoryBackingBusImpl();
+        activator = DEFAULT_ACTIVATOR;
     }
 
     public EasyBus(BackingBus backingBus) {
         this.backingBus = backingBus;
+        activator = DEFAULT_ACTIVATOR;
+    }
+
+    public EasyBus(Activator activator) {
+        backingBus = new MemoryBackingBusImpl();
+        this.activator = activator;
+    }
+
+    public EasyBus(BackingBus backingBus, Activator activator) {
+        this.backingBus = backingBus;
+        this.activator = activator;
     }
 
     /**
@@ -49,63 +60,30 @@ public class EasyBus {
     }
 
     /**
-     * Search a package name or reflections criteria for events and handlers
+     * Adds a listener class through activation. Default activator is a no-args
+     * constructor
      *
-     * @param name the name of the package or the criteria
-     * @return the current event bus
+     * @param handlerClass the listener class to activate
+     * @return the current easybus instance
      */
-    public final EasyBus search(String name) {
-        return search(new Reflections(name));
-    }
-
-    /**
-     * Search the class instances for events and handlers
-     *
-     * @param clazz the class to search
-     * @return the current event bus
-     */
-    public final EasyBus search(Class clazz) {
-        return search(new Reflections(clazz));
-    }
-
-    /**
-     * Search the classloader for events and handlers
-     *
-     * @param loader the classloader to search
-     * @return the current Event Bus
-     */
-    public final EasyBus search(ClassLoader loader) {
-        return search(new Reflections(loader));
-    }
-
-    /**
-     * Searches for handlers in reflections
-     *
-     * @param r the reflections to search for handlers in
-     * @return the current eventbus
-     */
-    public final EasyBus search(Reflections r) {
-        for (Class<? extends Handler> clazz : r.getSubTypesOf(Handler.class)) {
-            try {
-                Handler o = clazz.getConstructor().newInstance();
-                this.addHandler(o);
-            } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                throw new IllegalArgumentException(String.format(REFLECTION_ERROR, clazz.getCanonicalName(), ex.getMessage()));
-            }
+    public EasyBus register(Class<? extends Listener> handlerClass) {
+        try {
+            return this.register(this.activator.activate(handlerClass));
+        } catch (Exception ex) {
+            throw new ActivationFailureException(ex);
         }
-        return this;
     }
 
     /**
-     * Adds a new handler for all the specified event types it handlers.
+     * Adds a new listener for all the specified event types it handlers.
      * Operation is verified and type checked, and will only work on classes
      * that implement Handler
      *
-     * @param handler a handler object
+     * @param listener a listener object
      * @return the current easybus instance
      */
-    public EasyBus addHandler(Handler handler) {
-        Type[] genericInterfaces = handler.getClass().getGenericInterfaces();
+    public EasyBus register(Listener listener) {
+        Type[] genericInterfaces = listener.getClass().getGenericInterfaces();
         for (Type type : genericInterfaces) {
             if (!(type instanceof ParameterizedType)) {
                 continue;
@@ -114,11 +92,11 @@ public class EasyBus {
 
             /*
             This code may look wrong, but because of type erasure, 
-            a handler can only handle a single event, so no need to look 
+            a listener can only handle a single event, so no need to look 
             more, as the compiler will not compile multi inheritence of the
             same generic
              */
-            if ((parameterizedType.getRawType() == Handler.class)) {
+            if ((parameterizedType.getRawType() == Listener.class)) {
                 Type eventType = parameterizedType.getActualTypeArguments()[0];
 
                 /*
@@ -130,7 +108,7 @@ public class EasyBus {
                 }
                 Class eventClass = (Class) eventType;
 
-                backingBus.addHandler(eventClass, handler);
+                backingBus.addHandler(eventClass, listener);
                 break;
             }
         }
@@ -139,6 +117,13 @@ public class EasyBus {
 
     public void close() throws Exception {
         backingBus.close();
+    }
+
+    public class ActivationFailureException extends RuntimeException {
+
+        ActivationFailureException(Exception ex) {
+            super(ex);
+        }
     }
 
 }

@@ -9,7 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import me.kisoft.easybus.BackingBus;
-import me.kisoft.easybus.Handler;
+import me.kisoft.easybus.Listener;
 
 /**
  *
@@ -17,7 +17,7 @@ import me.kisoft.easybus.Handler;
  */
 public class MemoryBackingBusImpl extends BackingBus {
 
-    private final Map<Class, Set<Handler<Object>>> handlerMap = new HashMap<>();
+    private final Map<Class, Set<Listener<Object>>> handlerMap = new HashMap<>();
     private final ExecutorService pool;
 
     public MemoryBackingBusImpl() {
@@ -29,26 +29,22 @@ public class MemoryBackingBusImpl extends BackingBus {
         handlerMap.clear();
     }
 
-    public Set<Handler> getHandlers() {
-        return handlerMap.values().stream().flatMap(list -> list.stream()).distinct().collect(Collectors.toSet());
-    }
-
     @Override
-    public void addHandler(Class eventClass, Handler handler) {
+    public void addHandler(Class eventClass, Listener listener) {
         if (!handlerMap.containsKey(eventClass)) {
             handlerMap.put(eventClass, new HashSet<>());
         }
 
         /*
         Paranoid code that handles an unreal scenario where java type erasure
-        doesnt exist or work, making sure that a handler is only ever added
-        once in the handler set of an event.
+        doesnt exist or work, making sure that a listener is only ever added
+        once in the listener set of an event.
          */
-        Handler handlerToAdd = handlerMap.get(eventClass)
+        Listener handlerToAdd = handlerMap.get(eventClass)
                 .stream()
-                .filter(existingHandler -> existingHandler.getClass().equals(handler.getClass()))
+                .filter(existingHandler -> existingHandler.getClass().equals(listener.getClass()))
                 .findAny()
-                .orElse(handler);
+                .orElse(listener);
 
         handlerMap.get(eventClass).add(handlerToAdd);
 
@@ -59,32 +55,32 @@ public class MemoryBackingBusImpl extends BackingBus {
      * pool or in the current thread and handles it accordingly.
      *
      * @param <T> the event type
-     * @param handler the event handler
+     * @param listener the event listener
      * @param event the event
      */
-    private <T extends Object> void doHandle(Handler<T> handler, T event) {
-        if (handler.getClass().isAnnotationPresent(HandleAsync.class)) {
-            pool.submit(() -> this.handle(event, handler));
+    private <T extends Object> void doHandle(Listener<T> listener, T event) {
+        if (listener.getClass().isAnnotationPresent(ProcessAsync.class)) {
+            pool.submit(() -> this.handle(event, listener));
         } else {
-            this.handle(event, handler);
+            this.handle(event, listener);
         }
     }
 
     @Override
     public <T> void post(T event) {
-        Set<Handler<Object>> eventHandlers = handlerMap.entrySet()
+        Set<Listener<Object>> eventHandlers = handlerMap.entrySet()
                 .stream()
                 .filter(entry -> entry.getKey().isAssignableFrom(event.getClass()))
                 .flatMap(entry -> entry.getValue().stream())
                 .collect(Collectors.toSet());
 
         /*
-        Code in case the handler set is ever empty.
+        Code in case the listener set is ever empty.
          */
         Optional.of(eventHandlers)
                 .orElse(new HashSet<>())
                 .stream()
-                .forEach(handler -> doHandle(handler, event));
+                .forEach(listener -> doHandle(listener, event));
     }
 
     @Override

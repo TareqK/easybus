@@ -3,23 +3,18 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.kisoft</groupId>
     <artifactId>easybus-core</artifactId>
-    <version>3.0.2</version>
+    <version>4.0.0</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>me.kisoft</groupId>
         <artifactId>easybus-parent</artifactId>
-        <version>3.0.2</version>
+        <version>4.0.0</version>
     </parent>
     
     <name>Easybus Core</name>
     <description>Simple, No Frills Event Bus for Java - Core and In Memory Implementation</description>
 
     <dependencies>
-        <dependency>
-            <groupId>org.reflections</groupId>
-            <artifactId>reflections</artifactId>
-            <version>${reflections.version}</version>
-        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>

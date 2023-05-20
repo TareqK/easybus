@@ -13,10 +13,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import me.kisoft.easybus.BackingBus;
-import me.kisoft.easybus.Handler;
 import me.kisoft.easybus.memory.MemoryBackingBusImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import me.kisoft.easybus.Listener;
 
 /**
  *
@@ -120,9 +120,9 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     }
 
     @Override
-    protected void addHandler(Class eventClass, Handler handler) {
+    protected void addHandler(Class eventClass, Listener listener) {
         String exchangeName = getExcahngeName(eventClass);
-        String queueName = getQueueName(handler);
+        String queueName = getQueueName(listener);
         try {
             Channel channel = this.connection.createChannel();
             ObjectReader reader = mapper.reader().forType(eventClass);
@@ -145,7 +145,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             }, null, null);
             tagMap.put(eventClass, tag);
             channelMap.put(eventClass, channel);
-            memoryBusImpl.addHandler(eventClass, handler);
+            memoryBusImpl.addHandler(eventClass, listener);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }

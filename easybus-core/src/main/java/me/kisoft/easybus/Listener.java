@@ -1,13 +1,13 @@
 package me.kisoft.easybus;
 
 /**
- * An interface for event handler definition.
+ * An interface for event listener definition.
  *
  * @author tareq
  * @param <T> the type of the event class to handle
  */
 @FunctionalInterface
-public interface Handler<T> {
+public interface Listener<T> {
 
-    public void handle(T event);
+    public void on(T event);
 }
