@@ -101,6 +101,6 @@ highly advised to only use this sparingly.
 
 ## Implementing a Backing Bus
 
-To implement a backing bus, all you need to do is implement the `me.kisoft.easybus.BackingBus` Interface, and when
-creating a new EasyBus, you need to use the `new EasyBus(BackingBus bus)` constructor to change the backing bus, or
+To implement a backing bus, all you need to do is implement the ``me.kisoft.easybus.BackingBus`` Interface, and when
+creating a new EasyBus, you need to use the ``new EasyBus(BackingBus bus)`` constructor to change the backing bus, or
 create your own factory
