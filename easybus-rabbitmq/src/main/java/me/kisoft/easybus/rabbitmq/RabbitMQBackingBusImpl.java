@@ -8,10 +8,14 @@ import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 import me.kisoft.easybus.BackingBus;
 import me.kisoft.easybus.memory.MemoryBackingBusImpl;
 import org.slf4j.Logger;
@@ -24,15 +28,16 @@ import me.kisoft.easybus.Listener;
  */
 public class RabbitMQBackingBusImpl extends BackingBus {
 
-    private final Logger log = LoggerFactory.getLogger(RabbitMQBackingBusImpl.class);
-    private final Connection connection;
-    private final ObjectMapper mapper = new ObjectMapper()
+    protected final Logger log = LoggerFactory.getLogger(RabbitMQBackingBusImpl.class);
+    protected final Connection connection;
+    protected final ObjectMapper mapper = new ObjectMapper()
             .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-    private final Map<Class, String> tagMap = new HashMap<>();
-    private final Map<Class, Channel> channelMap = new HashMap<>();
-    private final Map<String, Boolean> exchangeExistanceMap = new HashMap<>();
-    private final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
+    protected final Map<Class, String> tagMap = new HashMap<>();
+    protected final Map<Class, Channel> channelMap = new HashMap<>();
+    protected final Set<String> exchangeList = new HashSet<>();
+    protected final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
+    protected final ReentrantLock declarationLock = new ReentrantLock();
 
     public RabbitMQBackingBusImpl(Connection connection) {
         this.connection = connection;
@@ -40,17 +45,46 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
     @Override
     public void post(Object object) {
-        try (Channel channel = this.connection.createChannel()) {
+        try (Channel channel = connection.createChannel()) {
             String exchangeName = getExcahngeName(object.getClass());
-            if (!exchangeExistanceMap.getOrDefault(exchangeName, Boolean.FALSE)) {
-                channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
-                log.debug(String.format("Declared Exchange %s", exchangeName));
-                exchangeExistanceMap.put(exchangeName, Boolean.TRUE);
-            }
+            verifyOrDeclareExchange(exchangeName);
             log.debug(String.format("Published Message to  Exchange %s", exchangeName));
             channel.basicPublish(getExcahngeName(object.getClass()), "all", null, mapper.writer().writeValueAsBytes(object));
         } catch (IOException | TimeoutException ex) {
             throw new RuntimeException(ex);
+        }
+    }
+
+    protected void verifyOrDeclareExchange(String exchangeName) throws IOException, TimeoutException {
+        if (!exchangeList.contains(exchangeName)) {
+            declarationLock.lock();
+            try {
+                boolean exchangeExists;
+                if (!exchangeList.contains(exchangeName)) {
+                    try (Channel verificationChannel = connection.createChannel()) {
+                        verificationChannel.exchangeDeclarePassive(exchangeName);
+                        log.debug(String.format("Exchange %s already exists", exchangeName));
+                        exchangeExists = true;
+
+                    } catch (IOException ex) {
+                        //exchange does not exist, declare it 
+                        exchangeExists = false;
+                    }
+
+                    if (!exchangeExists) {
+                        try (Channel creationChannel = connection.createChannel()) {
+                            creationChannel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
+                            log.debug(String.format("Declared Exchange %s", exchangeName));
+                            exchangeList.add(exchangeName);
+                            exchangeList.add(exchangeName);
+
+                        }
+                    }
+                }
+
+            } finally {
+                declarationLock.unlock();
+            }
         }
     }
 
@@ -67,11 +101,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
     }
 
-    public static String getQueueName(Object object) {
+    protected String getQueueName(Object object) {
         return getQueueName(object.getClass());
     }
 
-    public static String getQueueName(Class clazz) {
+    protected String getQueueName(Class clazz) {
         QueueName queueName = (QueueName) clazz.getAnnotation(QueueName.class);
         if (queueName != null) {
             return queueName.value();
@@ -79,7 +113,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         return clazz.getSimpleName();
     }
 
-    public static String getExcahngeName(Class clazz) {
+    protected String getExcahngeName(Class clazz) {
         ExchangeName exchangeName = (ExchangeName) clazz.getAnnotation(ExchangeName.class);
         if (exchangeName != null) {
             return exchangeName.value();
@@ -87,7 +121,22 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         return clazz.getSimpleName();
     }
 
-    private void clearChannels() {
+    protected Set<String> getRoutingKeys(Object object) {
+        return getRoutingKeys(object.getClass());
+    }
+
+    protected Set<String> getRoutingKeys(Class clazz) {
+        RoutingKey[] routingKeys = (RoutingKey[]) clazz.getAnnotationsByType(RoutingKey.class);
+        if (routingKeys == null || routingKeys.length == 0) {
+            return Set.of("#"); //read all messages
+        }
+        return Arrays.stream(routingKeys)
+                .map(RoutingKey::value)
+                .distinct()
+                .collect(Collectors.toSet());
+    }
+
+    protected void clearChannels() {
         try {
             channelMap.values().forEach(usedChannel -> {
                 try {
@@ -103,8 +152,8 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
     }
 
-    private void clearTags() {
-        try (Channel channel = this.connection.createChannel()) {
+    protected void clearTags() {
+        try (Channel channel = connection.createChannel()) {
             tagMap.values().forEach(tag -> {
                 try {
                     channel.basicCancel(tag);
@@ -123,8 +172,9 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     protected void addHandler(Class eventClass, Listener listener) {
         String exchangeName = getExcahngeName(eventClass);
         String queueName = getQueueName(listener);
+        Set<String> routingKeys = getRoutingKeys(listener);
         try {
-            Channel channel = this.connection.createChannel();
+            Channel channel = connection.createChannel();
             ObjectReader reader = mapper.reader().forType(eventClass);
             channel.addShutdownListener(cause -> {
                 if (cause.isHardError()) {
@@ -133,10 +183,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     log.warn(String.format("Channel for Queue(Event) Handler %s was closed normally : %s", queueName, cause.getMessage()));
                 }
             });
-
-            channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT);
-            channel.queueDeclare(queueName, false, false, false, null).getQueue();
-            channel.queueBind(queueName, exchangeName, UUID.randomUUID().toString());
+            verifyOrDeclareExchange(exchangeName);
+            String queue = channel.queueDeclare(queueName, false, false, false, null).getQueue();
+            for (String routingKey : routingKeys) {
+                channel.queueBind(queue, exchangeName, routingKey);
+            }
             String tag = channel.basicConsume(queueName, (consumerTag, delivery) -> {
                 log.debug(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
                 Object receivedEvent = reader.readValue(delivery.getBody());
@@ -146,7 +197,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             tagMap.put(eventClass, tag);
             channelMap.put(eventClass, channel);
             memoryBusImpl.addHandler(eventClass, listener);
-        } catch (IOException ex) {
+        } catch (IOException | TimeoutException ex) {
             throw new RuntimeException(ex);
         }
     }

@@ -1,7 +1,9 @@
 package me.kisoft.easybus.rabbitmq.test;
 
+import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.MessageProperties;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 import me.kisoft.easybus.EasyBus;
@@ -19,20 +21,20 @@ import org.testcontainers.utility.DockerImageName;
  * @author tareq
  */
 public class RabbitMQBusImplTest {
-    
+
     private static EasyBus sendingBus;
     private static EasyBus receivingBus;
     private static RabbitMQContainer rabbitMqContainer;
     private static ConnectionFactory factory;
-    
+
     @BeforeClass
     public static void setupContainer() throws Exception {
         rabbitMqContainer = new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.11.0"))
                 .withUser("guest", "guest");
         rabbitMqContainer.start();
-        
+
     }
-    
+
     @Before
     public void setup() throws IOException, TimeoutException {
         factory = new ConnectionFactory();
@@ -48,28 +50,39 @@ public class RabbitMQBusImplTest {
                 .register(RabbitMQTestListener.class)
                 .register(MultiHandlerTestListener.class);
     }
-    
+
     @After
     public void teardown() throws Exception {
         sendingBus.close();
         receivingBus.close();
     }
-    
+
+    @Test(timeout = 10000)
+    public void attemptSendingWhenExchangeAlreadyExistsShouldWork() throws IOException, TimeoutException, InterruptedException {
+        factory.newConnection().createChannel().exchangeDeclare("declared.exchange", BuiltinExchangeType.TOPIC);
+        receivingBus.register(RabbitMQNamedTestOnCratedExchangeEventListener.class);
+        factory.newConnection().createChannel().basicPublish("declared.exchange", "all", null, "{}".getBytes());
+        while (!RabbitMQNamedTestOnCreatedExchangeEvent.handled) {
+            Thread.sleep(100);
+        }
+        assertTrue(RabbitMQNamedTestOnCreatedExchangeEvent.handled);
+    }
+
     @Test
     public void attemptSendingNull() {
         sendingBus.post(null);
     }
-    
+
     @Test(timeout = 10000)
     public void handleEvent() throws InterruptedException {
         RabbitMQTestEvent.handled = false;
         sendingBus.post(new RabbitMQTestEvent());
         while (!RabbitMQTestEvent.handled) {
             Thread.sleep(100);
-        }
+        };
         assertTrue(RabbitMQTestEvent.handled);
     }
-    
+
     @Test(timeout = 10000)
     public void handleNamedEvent() throws InterruptedException {
         RabbitMQNamedTestEvent.handled = false;
@@ -79,7 +92,7 @@ public class RabbitMQBusImplTest {
         }
         assertTrue(RabbitMQNamedTestEvent.handled);
     }
-    
+
     @Test(timeout = 10000)
     public void multiEventHandlerTest() throws InterruptedException {
         RabbitMQTestEvent.handled = false;
@@ -94,5 +107,5 @@ public class RabbitMQBusImplTest {
         assertTrue(RabbitMQTestEvent.handled);
         assertTrue(RabbitMQTestEvent.handled2);
     }
-    
+
 }
