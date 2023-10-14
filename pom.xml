@@ -13,7 +13,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <reflections.version>0.10.2</reflections.version>
         <lombok.version>1.18.26</lombok.version>
-        <slf4j-api.version>2.0.7</slf4j-api.version>
+        <slf4j-api.version>2.0.9</slf4j-api.version>
         <junit.version>4.13</junit.version>
         <apache.commons.version>3.10</apache.commons.version>
         <auto-service.version>1.0-rc2</auto-service.version>
