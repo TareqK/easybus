@@ -4,8 +4,6 @@
 Easy bus is a simple, strictly typed event bus for java designed for simplicity 
 and minimalism.
 
-<hr/>
-
 # Usage
 
 ## Installation
