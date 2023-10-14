@@ -1,10 +1,9 @@
-![Maven Central](https://maven-badges.herokuapp.com/maven-central/me.kisoft/easybus-core/badge.png)
-
 # EasyBus
+![Maven Central](https://maven-badges.herokuapp.com/maven-central/me.kisoft/easybus-core/badge.png)
 
 Easy bus is a simple, strictly typed event bus for java designed for simplicity 
 and minimalism.
-
+<hr/>
 # Usage
 
 ## Installation
