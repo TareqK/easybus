@@ -16,7 +16,7 @@ RabbitMQ connection.
     //add your listeners
 ```
 
-Events can also be attached to specific exchanges, by using the ```@ExchangeName``` annotation
+Events can also be attached to specific exchanges, by using the ``@ExchangeName`` annotation
 
 ```java
     @ExchangeName("exchange.name")
@@ -28,7 +28,7 @@ Events can also be attached to specific exchanges, by using the ```@ExchangeName
 If no name is given, then the name of the event class itself will be used as the exchange name.
 
 
-Event Listeners can also be attached to specific queues, by using the ```@QueueName``` annotation
+Event Listeners can also be attached to specific queues, by using the ``@QueueName`` annotation
 
 ```java
     @QueueName("queue.name")
@@ -38,6 +38,22 @@ Event Listeners can also be attached to specific queues, by using the ```@QueueN
 ```
 
 If no name is given, then the name of the listener class itself will be used as the queue name.
+
+
+Event Listeners can also be given specific routing keys to listen for, especially for ``Topic`` queues
+declared from other systems(as of 4.1.0) using one or more ``@RoutingKey`` annotations on a ``Listener`` class.
+
+```java
+    @RoutingKey("*.tacos.*")
+    @RoutingKey("#.cuisine")
+    public class MyEventListener implements Listener<MyEvent>{
+        ....
+    }
+```
+
+If no given ``RoutingKey`` is given, then it will listen on the ALL routing key (``#``) by default.
+
+
 
 ## Caveats
 
