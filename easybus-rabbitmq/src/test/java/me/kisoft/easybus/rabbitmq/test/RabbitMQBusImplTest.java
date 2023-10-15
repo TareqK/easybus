@@ -3,7 +3,6 @@ package me.kisoft.easybus.rabbitmq.test;
 import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
-import com.rabbitmq.client.MessageProperties;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 import me.kisoft.easybus.EasyBus;
@@ -44,8 +43,8 @@ public class RabbitMQBusImplTest {
         factory.setPassword("guest");
         Connection connection1 = factory.newConnection();
         Connection connection2 = factory.newConnection();
-        sendingBus = new EasyBus(new RabbitMQBackingBusImpl(connection1));
-        receivingBus = new EasyBus(new RabbitMQBackingBusImpl(connection2));
+        sendingBus = new EasyBus(new RabbitMQBackingBusImpl(connection1,true));
+        receivingBus = new EasyBus(new RabbitMQBackingBusImpl(connection2,true));
         receivingBus.register(RabbitMQNamedTestListener.class)
                 .register(RabbitMQTestListener.class)
                 .register(MultiHandlerTestListener.class);

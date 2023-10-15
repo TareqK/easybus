@@ -23,14 +23,17 @@
  */
 package me.kisoft.easybus.rabbitmq.test;
 
+import com.rabbitmq.client.BuiltinExchangeType;
 import lombok.Data;
 import me.kisoft.easybus.rabbitmq.ExchangeName;
+import me.kisoft.easybus.rabbitmq.ExchangeType;
 
 /**
  *
  * @author tareq
  */
 @ExchangeName("declared.exchange")
+@ExchangeType(BuiltinExchangeType.TOPIC)
 @Data
 public class RabbitMQNamedTestOnCreatedExchangeEvent {
 
