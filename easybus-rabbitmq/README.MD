@@ -51,7 +51,8 @@ declared from other systems(as of 4.1.0) using one or more ``@RoutingKey`` annot
     }
 ```
 
-If no given ``RoutingKey`` is given, then it will listen on the ALL routing key (``#``) by default.
+If no given ``RoutingKey`` is given, then it will listen on the ALL routing key (``#``) by default. Multiple
+``@RoutingKey`` annotations can be used
 
 
 You can also specify the exchange type for an event, using the ``@ExchangeType`` annotation(as of 4.1.1). 

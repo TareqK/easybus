@@ -13,9 +13,8 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@Repeatable(RoutingKeys.class)
-public @interface RoutingKey {
+public @interface RoutingKeys {
 
-    public String value();
+    public RoutingKey[] value();
 
 }
