@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.kisoft</groupId>
     <artifactId>easybus-parent</artifactId>
-    <version>4.2.0</version>
+    <version>4.2.1</version>
     <name>EasyBus</name>
     <packaging>pom</packaging>
     <properties>
@@ -12,7 +12,7 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <reflections.version>0.10.2</reflections.version>
-        <lombok.version>1.18.26</lombok.version>
+        <lombok.version>1.18.30</lombok.version>
         <slf4j-api.version>2.0.9</slf4j-api.version>
         <junit.version>4.13</junit.version>
         <apache.commons.version>3.10</apache.commons.version>
@@ -54,7 +54,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.8</version>
+                <version>0.8.9</version>
                 <executions>
                     <execution>
                         <goals>
