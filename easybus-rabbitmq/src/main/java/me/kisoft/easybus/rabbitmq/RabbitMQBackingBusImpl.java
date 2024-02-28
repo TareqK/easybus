@@ -81,9 +81,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                         verificationChannel.exchangeDeclarePassive(exchangeName);
                         log.debug("Exchange {} already exists", exchangeName);
                         exchangeExists = true;
-
                     } catch (IOException ex) {
-                        //exchange does not exist, declare it 
                         exchangeExists = false;
                     }
 
@@ -94,9 +92,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                             log.debug("Declared Exchange {}", exchangeName);
                             exchangeList.add(exchangeName);
                             exchangeNeedsUpdate = false;
-
                         } catch (IOException ex) {
-                            //exchange type mismatched
                             exchangeNeedsUpdate = true;
                         }
                     }
@@ -109,7 +105,6 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                         }
                     }
                 }
-
             } finally {
                 declarationLock.unlock();
             }
@@ -220,7 +215,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         Set<String> routingKeys = getRoutingKeys(listener);
         try {
             Channel channel = connection.createChannel();
-            channel.basicQos(maxPrefetch);
+            channel.basicQos(maxPrefetch, false);
             channel.setDefaultConsumer(new DefaultConsumer(channel));
             ObjectReader reader = mapper.reader().forType(eventClass);
             verifyOrUpdateExchange(exchangeName, type);
@@ -251,7 +246,6 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     receivedEvent = null;
                     log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
                 }
-
             };
 
             CancelCallback cancelCallback = (tag) -> {
@@ -264,7 +258,6 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     log.error("Channel for Queue(Event) Listener {} was closed abnormaly : {}", queueName, cause);
                 } else {
                     log.warn("Channel for Queue(Event) Listener {} was closed normally : {}", queueName, cause);
-
                 }
             };
 
