@@ -220,6 +220,8 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         Set<String> routingKeys = getRoutingKeys(listener);
         try {
             Channel channel = connection.createChannel();
+            channel.basicQos(maxPrefetch);
+            channel.setDefaultConsumer(new DefaultConsumer(channel));
             ObjectReader reader = mapper.reader().forType(eventClass);
             verifyOrUpdateExchange(exchangeName, type);
             String queue = channel.queueDeclare(queueName, false, false, false, null).getQueue();
@@ -265,9 +267,8 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
                 }
             };
-            channel.basicQos(maxPrefetch);
-            channel.setDefaultConsumer(new DefaultConsumer(channel));
-            String tag = channel.basicConsume(queueName, false, deliverCallback, cancelCallback, shutdownCallback);
+
+            String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);
             tagMap.put(eventClass, tag);
             channelMap.put(eventClass, channel);
             memoryBusImpl.addHandler(eventClass, listener);
