@@ -28,7 +28,7 @@ public class RabbitMQBusImplTest {
 
     @BeforeClass
     public static void setupContainer() throws Exception {
-        rabbitMqContainer = new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.11.0"))
+        rabbitMqContainer = new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.13.0"))
                 .withUser("guest", "guest");
         rabbitMqContainer.start();
 
