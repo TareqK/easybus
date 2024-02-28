@@ -17,7 +17,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -40,6 +43,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     protected final Map<Class, String> tagMap = new HashMap<>();
     protected final Map<Class, Channel> channelMap = new HashMap<>();
+    protected final Map<Class, ExecutorService> executorMap = new HashMap<>();
     protected final Set<String> exchangeList = new HashSet<>();
     protected final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
     protected final ReentrantLock declarationLock = new ReentrantLock();
@@ -115,6 +119,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     public void clear() {
         clearTags();
         clearChannels();
+        clearExecutors();
     }
 
     @Override
@@ -213,6 +218,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         BuiltinExchangeType type = getExchangeType(eventClass);
         String queueName = getQueueName(listener);
         Set<String> routingKeys = getRoutingKeys(listener);
+        ExecutorService executor = Executors.newFixedThreadPool(maxPrefetch < 1 ? 1 : maxPrefetch);
         try {
             Channel channel = connection.createChannel();
             channel.basicQos(maxPrefetch, false);
@@ -225,32 +231,48 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             }
 
             DeliverCallback deliverCallback = (consumerTag, delivery) -> {
-                log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
-                Object receivedEvent;
-                try {
-                    receivedEvent = reader.readValue(delivery.getBody());
-                } catch (JsonProcessingException ex) {
-                    log.warn("Error Decoding message from Exchange {}, class {}: {} ", exchangeName, eventClass, ex);
-                    channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-                    return;
-                }
-                try {
-                    memoryBusImpl.post(receivedEvent);
-                    channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-                } catch (IOException ex) {
-                    log.error("Exception when processing message from rabbitMQ : {}", ex);
-                } catch (Throwable ex) {
-                    log.info("Failure when processing event of type {}, Listener {} : {}", eventClass, listener, ex);
-                    channel.basicNack(delivery.getEnvelope().getDeliveryTag(), false, requeue);
-                } finally {
-                    receivedEvent = null;
-                    log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
-                }
+                final byte[] body = delivery.getBody();
+                final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
+                executor.submit(() -> {
+                    boolean doAck = false;
+                    log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
+                    Object receivedEvent = null;
+                    try {
+                        receivedEvent = reader.readValue(body);
+                    } catch (IOException ex) {
+                        log.warn("Error Decoding message from Exchange {}, class {}: {} ", exchangeName, eventClass, ex);
+                        doAck = true;
+                        receivedEvent = null;
+                    }
+                    if (receivedEvent != null) {
+                        try {
+                            memoryBusImpl.post(receivedEvent);
+                            doAck = true;
+                        } catch (Throwable ex) {
+                            log.info("Failure when processing event of type {}, Listener {} : {}", eventClass, listener, ex);
+                            doAck = false;
+                        } finally {
+                            receivedEvent = null;
+                            log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
+                        }
+                    }
+                    try {
+                        if (doAck) {
+                            channel.basicAck(deliveryTag, false);
+                        } else {
+                            channel.basicNack(deliveryTag, false, requeue);
+                        }
+
+                    } catch (IOException ex) {
+                        log.error("Exception when processing message from rabbitMQ : {}", ex);
+                    }
+                });
             };
 
             CancelCallback cancelCallback = (tag) -> {
                 tagMap.remove(eventClass);
                 channelMap.remove(eventClass);
+                Optional.ofNullable(executorMap.remove(eventClass)).ifPresent(item -> item.shutdown());
             };
 
             ConsumerShutdownSignalCallback shutdownCallback = (tag, cause) -> {
@@ -265,10 +287,16 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);
             tagMap.put(eventClass, tag);
             channelMap.put(eventClass, channel);
+            executorMap.put(eventClass, executor);
         } catch (IOException | TimeoutException ex) {
             log.error("Failed to add listener {} : {}", listener, ex);
             throw new RuntimeException(ex);
         }
+    }
+
+    private void clearExecutors() {
+        executorMap.values().stream().forEach(item -> item.shutdown());
+        executorMap.clear();
     }
 
 }
