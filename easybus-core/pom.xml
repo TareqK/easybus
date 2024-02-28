@@ -3,12 +3,12 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.kisoft</groupId>
     <artifactId>easybus-core</artifactId>
-    <version>4.2.3</version>
+    <version>4.2.4</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>me.kisoft</groupId>
         <artifactId>easybus-parent</artifactId>
-        <version>4.2.3</version>
+        <version>4.2.4</version>
     </parent>
     
     <name>Easybus Core</name>

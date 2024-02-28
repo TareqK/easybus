@@ -1,5 +1,6 @@
 package me.kisoft.easybus.rabbitmq;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -44,15 +45,17 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     protected final ReentrantLock declarationLock = new ReentrantLock();
     protected final boolean allowUpdate;
     protected final int maxPrefetch;
+    protected final boolean requeue;
 
-    public RabbitMQBackingBusImpl(Connection connection, boolean allowUpdate, int maxPrefetch) {
+    public RabbitMQBackingBusImpl(Connection connection, boolean allowUpdate, int maxPrefetch, boolean requeue) {
         this.connection = connection;
         this.allowUpdate = allowUpdate;
         this.maxPrefetch = maxPrefetch;
+        this.requeue = requeue;
     }
 
     public RabbitMQBackingBusImpl(Connection connection, boolean allowUpdate) {
-        this(connection, allowUpdate, 10);
+        this(connection, allowUpdate, 10, true);
     }
 
     @Override
@@ -225,15 +228,22 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             }
 
             DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+                log.trace(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
+                Object receivedEvent;
                 try {
-                    log.trace(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
-                    Object receivedEvent = reader.readValue(delivery.getBody());
-                    memoryBusImpl.post(receivedEvent);
-                    channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-                } catch (Throwable ex) {
-                    log.info(ex.getMessage());
-                    channel.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
+                    receivedEvent = reader.readValue(delivery.getBody());
+                } catch (JsonProcessingException ex) {
+                    return;
                 }
+                try {
+                    memoryBusImpl.post(receivedEvent);
+                } catch (Throwable ex) {
+                    log.info("Failure when processing event of type {}, Listener {} : {}", eventClass, listener, ex);
+                    if (requeue) {
+                        this.post(receivedEvent);
+                    }
+                }
+
             };
 
             CancelCallback cancelCallback = (tag) -> {
@@ -251,7 +261,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             };
             channel.basicQos(maxPrefetch);
             channel.setDefaultConsumer(new DefaultConsumer(channel));
-            String tag = channel.basicConsume(queueName, false, deliverCallback, cancelCallback, shutdownCallback);
+            String tag = channel.basicConsume(queueName, true, deliverCallback, cancelCallback, shutdownCallback);
             tagMap.put(eventClass, tag);
             channelMap.put(eventClass, channel);
             memoryBusImpl.addHandler(eventClass, listener);
