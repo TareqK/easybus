@@ -236,7 +236,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 executor.submit(() -> {
                     boolean doAck = false;
                     log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
-                    Object receivedEvent = null;
+                    Object receivedEvent;
                     try {
                         receivedEvent = reader.readValue(body);
                     } catch (IOException ex) {
