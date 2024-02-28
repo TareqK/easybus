@@ -64,7 +64,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             String exchangeName = getExcahngeName(object);
             BuiltinExchangeType type = getExchangeType(object);
             verifyOrUpdateExchange(exchangeName, type);
-            log.debug(String.format("Published Message to  Exchange %s", exchangeName));
+            log.debug("Published Message to  Exchange {}", exchangeName);
             channel.basicPublish(getExcahngeName(object.getClass()), "all", null, mapper.writer().writeValueAsBytes(object));
         } catch (IOException | TimeoutException ex) {
             throw new RuntimeException(ex);
@@ -79,7 +79,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 if (!exchangeList.contains(exchangeName)) {
                     try (Channel verificationChannel = connection.createChannel()) {
                         verificationChannel.exchangeDeclarePassive(exchangeName);
-                        log.debug(String.format("Exchange %s already exists", exchangeName));
+                        log.debug("Exchange {} already exists", exchangeName);
                         exchangeExists = true;
 
                     } catch (IOException ex) {
@@ -91,7 +91,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     if (!exchangeExists) {
                         try (Channel creationChannel = connection.createChannel()) {
                             creationChannel.exchangeDeclare(exchangeName, type);
-                            log.debug(String.format("Declared Exchange %s", exchangeName));
+                            log.debug("Declared Exchange {}", exchangeName);
                             exchangeList.add(exchangeName);
                             exchangeNeedsUpdate = false;
 
@@ -186,7 +186,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 try {
                     usedChannel.close();
                 } catch (IOException | TimeoutException ex) {
-                    log.warn(String.format("Failed to close channel %s : %s", usedChannel.getChannelNumber(), ex.getMessage()));
+                    log.warn("Failed to close channel {} : {}", usedChannel.getChannelNumber(), ex);
                 }
             });
         } catch (Exception ex) {
@@ -202,7 +202,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 try {
                     channel.basicCancel(tag);
                 } catch (IOException ex) {
-                    log.warn(String.format("Failed to close tag %s : %s", tag, ex.getMessage()));
+                    log.warn("Failed to close tag {} : {}", tag, ex);
                 }
             });
         } catch (IOException | TimeoutException ex) {
@@ -228,20 +228,26 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             }
 
             DeliverCallback deliverCallback = (consumerTag, delivery) -> {
-                log.trace(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
+                log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
                 Object receivedEvent;
                 try {
                     receivedEvent = reader.readValue(delivery.getBody());
                 } catch (JsonProcessingException ex) {
+                    log.warn("Error Decoding message from Exchange {}, class {}: {} ", exchangeName, eventClass, ex);
+                    channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
                     return;
                 }
                 try {
                     memoryBusImpl.post(receivedEvent);
+                    channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+                } catch (IOException ex) {
+                    log.error("Exception when processing message from rabbitMQ : {}", ex);
                 } catch (Throwable ex) {
                     log.info("Failure when processing event of type {}, Listener {} : {}", eventClass, listener, ex);
-                    if (requeue) {
-                        this.post(receivedEvent);
-                    }
+                    channel.basicNack(delivery.getEnvelope().getDeliveryTag(), false, requeue);
+                } finally {
+                    receivedEvent = null;
+                    log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
                 }
 
             };
@@ -253,15 +259,15 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
             ConsumerShutdownSignalCallback shutdownCallback = (tag, cause) -> {
                 if (cause.isHardError()) {
-                    log.error(String.format("Channel for Queue(Event) Handler %s was closed : %s", queueName, cause.getMessage()));
+                    log.error("Channel for Queue(Event) Listener {} was closed abnormaly : {}", queueName, cause);
                 } else {
-                    log.warn(String.format("Channel for Queue(Event) Handler %s was closed normally : %s", queueName, cause.getMessage()));
-                }
+                    log.warn("Channel for Queue(Event) Listener {} was closed normally : {}", queueName, cause);
 
+                }
             };
             channel.basicQos(maxPrefetch);
             channel.setDefaultConsumer(new DefaultConsumer(channel));
-            String tag = channel.basicConsume(queueName, true, deliverCallback, cancelCallback, shutdownCallback);
+            String tag = channel.basicConsume(queueName, false, deliverCallback, cancelCallback, shutdownCallback);
             tagMap.put(eventClass, tag);
             channelMap.put(eventClass, channel);
             memoryBusImpl.addHandler(eventClass, listener);
