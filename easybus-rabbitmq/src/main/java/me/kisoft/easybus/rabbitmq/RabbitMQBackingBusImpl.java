@@ -268,10 +268,10 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 }
             };
 
+            memoryBusImpl.addHandler(eventClass, listener);
             String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);
             tagMap.put(eventClass, tag);
             channelMap.put(eventClass, channel);
-            memoryBusImpl.addHandler(eventClass, listener);
         } catch (IOException | TimeoutException ex) {
             log.error("Failed to add listener {} : {}", listener, ex);
             throw new RuntimeException(ex);
