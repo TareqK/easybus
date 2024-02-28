@@ -5,8 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.CancelCallback;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConsumerShutdownSignalCallback;
+import com.rabbitmq.client.DefaultConsumer;
+import com.rabbitmq.client.DeliverCallback;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -15,7 +19,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 import me.kisoft.easybus.BackingBus;
 import me.kisoft.easybus.memory.MemoryBackingBusImpl;
@@ -29,7 +32,7 @@ import me.kisoft.easybus.Listener;
  */
 public class RabbitMQBackingBusImpl extends BackingBus {
 
-    protected final Logger log = LoggerFactory.getLogger(RabbitMQBackingBusImpl.class);
+    protected static final Logger log = LoggerFactory.getLogger(RabbitMQBackingBusImpl.class);
     protected final Connection connection;
     protected final ObjectMapper mapper = new ObjectMapper()
             .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
@@ -40,10 +43,16 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     protected final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
     protected final ReentrantLock declarationLock = new ReentrantLock();
     protected final boolean allowUpdate;
+    protected final int maxPrefetch;
 
-    public RabbitMQBackingBusImpl(Connection connection, boolean allowUpdate) {
+    public RabbitMQBackingBusImpl(Connection connection, boolean allowUpdate, int maxPrefetch) {
         this.connection = connection;
         this.allowUpdate = allowUpdate;
+        this.maxPrefetch = maxPrefetch;
+    }
+
+    public RabbitMQBackingBusImpl(Connection connection, boolean allowUpdate) {
+        this(connection, allowUpdate, 10);
     }
 
     @Override
@@ -209,44 +218,45 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         try {
             Channel channel = connection.createChannel();
             ObjectReader reader = mapper.reader().forType(eventClass);
-            channel.addShutdownListener(cause -> {
-                tagMap.remove(eventClass);
-                channelMap.remove(eventClass);
-                if (channel.isOpen()) {
-                    try {
-                        channel.close();
-                    } catch (IOException | TimeoutException ex) {
-                        //no-op
-                    }
-                }
-                if (cause.isHardError()) {
-                    log.error(String.format("Channel for Queue(Event) Handler %s was closed : %s", queueName, cause.getMessage()));
-                } else {
-                    log.warn(String.format("Channel for Queue(Event) Handler %s was closed normally : %s", queueName, cause.getMessage()));
-                    addHandler(eventClass, listener);
-                }
-            });
             verifyOrUpdateExchange(exchangeName, type);
             String queue = channel.queueDeclare(queueName, false, false, false, null).getQueue();
             for (String routingKey : routingKeys) {
                 channel.queueBind(queue, exchangeName, routingKey);
             }
-            String tag = channel.basicConsume(queueName, (consumerTag, delivery) -> {
+
+            DeliverCallback deliverCallback = (consumerTag, delivery) -> {
                 try {
                     log.trace(String.format("Received Message from Exchange %s Queue %s with Delivery Tag %s", exchangeName, queueName, String.valueOf(delivery.getEnvelope().getDeliveryTag())));
                     Object receivedEvent = reader.readValue(delivery.getBody());
                     memoryBusImpl.post(receivedEvent);
                     channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-                } catch (Exception ex) {
+                } catch (Throwable ex) {
                     log.info(ex.getMessage());
                     channel.basicNack(delivery.getEnvelope().getDeliveryTag(), false, true);
                 }
-            }, null, null);
+            };
 
+            CancelCallback cancelCallback = (tag) -> {
+                tagMap.remove(eventClass);
+                channelMap.remove(eventClass);
+            };
+
+            ConsumerShutdownSignalCallback shutdownCallback = (tag, cause) -> {
+                if (cause.isHardError()) {
+                    log.error(String.format("Channel for Queue(Event) Handler %s was closed : %s", queueName, cause.getMessage()));
+                } else {
+                    log.warn(String.format("Channel for Queue(Event) Handler %s was closed normally : %s", queueName, cause.getMessage()));
+                }
+
+            };
+            channel.basicQos(maxPrefetch);
+            channel.setDefaultConsumer(new DefaultConsumer(channel));
+            String tag = channel.basicConsume(queueName, false, deliverCallback, cancelCallback, shutdownCallback);
             tagMap.put(eventClass, tag);
             channelMap.put(eventClass, channel);
             memoryBusImpl.addHandler(eventClass, listener);
         } catch (IOException | TimeoutException ex) {
+            log.error("Failed to add listener {} : {}", listener, ex);
             throw new RuntimeException(ex);
         }
     }
