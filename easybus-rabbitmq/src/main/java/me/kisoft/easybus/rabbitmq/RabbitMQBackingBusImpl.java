@@ -306,8 +306,12 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);//ignorable
             tagMap.replace(eventClass, tag);//idempotent
             Channel oldChannel = channelMap.replace(eventClass, channel);//safe
-            if (oldChannel != null) {
-                oldChannel.close();
+            try {
+                if (oldChannel != null) {
+                    oldChannel.close();
+                }
+            } catch (Exception ex) {
+                // no-op
             }
         } catch (IOException | TimeoutException ex) {
             log.info("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex);
