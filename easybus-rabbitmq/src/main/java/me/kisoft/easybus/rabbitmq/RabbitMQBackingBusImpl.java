@@ -305,7 +305,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             memoryBusImpl.addListener(eventClass, listener);//idempotent
             String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);//ignorable
             tagMap.replace(eventClass, tag);//idempotent
-            Channel oldChannel = channelMap.replace(eventClass, channel);//safe
+            Channel oldChannel = channelMap.put(eventClass, channel);//safe
             try {
                 if (oldChannel != null) {
                     oldChannel.close();
