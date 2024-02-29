@@ -227,14 +227,13 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         if (retry > maxRetries) {
             log.error("Failure to add listener {} for event {} : too many retries({}/{})", listener, eventClass, retry, maxRetries);
         }
-        log.warn("Attempting to add listener {} for event {} : attempt ({}/{})", listener, eventClass, retry, maxRetries);
-
-        String exchangeName = getExcahngeName(eventClass);
-        BuiltinExchangeType type = getExchangeType(eventClass);
-        String queueName = getQueueName(listener);
-        Set<String> routingKeys = getRoutingKeys(listener);
-        ExecutorService executor = executorMap.computeIfAbsent(eventClass, item -> Executors.newFixedThreadPool(maxPrefetch < 1 ? 1 : maxPrefetch));
         try {
+            log.warn("Attempting to add listener {} for event {} : attempt ({}/{})", listener, eventClass, retry, maxRetries);
+            String exchangeName = getExcahngeName(eventClass);
+            BuiltinExchangeType type = getExchangeType(eventClass);
+            String queueName = getQueueName(listener);
+            Set<String> routingKeys = getRoutingKeys(listener);
+            ExecutorService executor = executorMap.computeIfAbsent(eventClass, item -> Executors.newFixedThreadPool(maxPrefetch < 1 ? 1 : maxPrefetch));
             Channel channel = connection.createChannel();
             channel.basicQos(maxPrefetch, false);
             channel.setDefaultConsumer(new DefaultConsumer(channel));
