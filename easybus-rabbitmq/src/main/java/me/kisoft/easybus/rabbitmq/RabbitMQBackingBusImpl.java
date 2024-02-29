@@ -193,7 +193,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 try {
                     usedChannel.close();
                 } catch (IOException | TimeoutException ex) {
-                    log.warn("Failed to close channel {} : {}", usedChannel.getChannelNumber(), ex);
+                    log.warn("Failed to close channel {} : {}", usedChannel.getChannelNumber(), ex.getMessage());
                 }
             });
         } catch (Exception ex) {
@@ -204,24 +204,24 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     }
 
     protected void clearTags() {
-        try (Channel channel = connection.createChannel()) {
-            tagMap.values().forEach(tag -> {
+        tagMap.values().forEach(tag -> {
+            try (Channel channel = connection.createChannel()) {
                 try {
                     channel.basicCancel(tag);
                 } catch (IOException ex) {
-                    log.warn("Failed to close tag {} : {}", tag, ex);
+                    log.warn("Failed to close tag {} : {}", tag, ex.getMessage());
                 }
-            });
-        } catch (IOException | TimeoutException ex) {
-            log.error(ex.getMessage());
-        } finally {
-            tagMap.clear();
-        }
+            } catch (IOException | TimeoutException ex) {
+                log.error(ex.getMessage());
+            }
+        });
+
+        tagMap.clear();
     }
 
     private void doAddListener(Class eventClass, Listener listener, int retry, int maxRetries) {
         if (retry < 1 || maxRetries < 1) {
-            rebindingExecutor.submit(() -> doAddListener(eventClass, listener, 1, 1));
+            rebindingExecutor.schedule(() -> doAddListener(eventClass, listener, 1, 1), 50, TimeUnit.MILLISECONDS);
         }
         if (retry > maxRetries) {
             log.error("Failure to add listener {} for event {} : too many retries({}/{})", listener, eventClass, retry, maxRetries);
@@ -255,7 +255,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     try {
                         receivedEvent = reader.readValue(body);
                     } catch (Throwable ex) {
-                        log.warn("Error Decoding message from Exchange {}, class {}: {} ", exchangeName, eventClass, ex);
+                        log.warn("Error Decoding message from Exchange {}, class {} : {} ", exchangeName, eventClass, ex.getMessage());
                         doAck = true;
                         receivedEvent = null;
                     }
@@ -264,7 +264,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                             memoryBusImpl.post(receivedEvent);
                             doAck = true;
                         } catch (Throwable ex) {
-                            log.warn("Failure when processing event of type {}, Listener {} : {}", eventClass, listener, ex);
+                            log.warn("Failure when processing event of type {}, Listener {} : {}", eventClass, listener, ex.getMessage());
                             doAck = false;
                         } finally {
                             receivedEvent = null;
@@ -278,8 +278,10 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                             channel.basicNack(deliveryTag, false, requeue);
                         }
 
+                    } catch (IOException ex) {
+                        log.error("RabbitMQ Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
                     } catch (Throwable ex) {
-                        log.error("RabbitMQ Exception when processing Message from Exchange {} Queue {} with Delivery Tag {}: {}", exchangeName, queueName, deliveryTag, ex);
+                        log.error("Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
                     }
                 });
             };
@@ -302,10 +304,10 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 } else {
                     log.warn("Consumer for Queue(Event) Listener {} was closed normally : {}", queueName, cause.getReason());
                 }
-                log.warn("Attempting to rebind Consumer for Queue(Event) Listener {}", queueName);
-                rebindingExecutor.submit(() -> {
+                rebindingExecutor.schedule(() -> {
+                    log.warn("Attempting to rebind Consumer for Queue(Event) Listener {}", queueName);
                     doAddListener(eventClass, listener, 1, maxRetries);
-                });
+                }, retryThresholdMillis, TimeUnit.MILLISECONDS);
             };
 
             memoryBusImpl.addListener(eventClass, listener);//idempotent
@@ -313,21 +315,21 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             tagMap.put(eventClass, tag);//idempotent
             Channel oldChannel = channelMap.put(eventClass, channel);//safe
             try {
-                if (oldChannel != null) {
+                if (oldChannel != null && oldChannel.isOpen()) {
                     oldChannel.close();
                 }
             } catch (Throwable ex) {
-                log.warn("Issue while attempting to close old channel for listener {} : {}", queueName, ex);
+                log.warn("Issue while attempting to close old channel for listener {} : {}", queueName, ex.getMessage());
             }
 
             try {
                 channel.basicRecover(true);
             } catch (Throwable ex) {
-                log.warn("Issue while attempting to recover channel for listener {} : {}", queueName, ex);
+                log.warn("Issue while attempting to recover channel for listener {} : {}", queueName, ex.getMessage());
 
             }
         } catch (Throwable ex) {
-            log.warn("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex);
+            log.warn("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex.getMessage());
             rebindingExecutor.schedule(() -> doAddListener(eventClass, listener, (retry + 1), maxRetries), retry * this.retryThresholdMillis, TimeUnit.MILLISECONDS);
         }
     }
