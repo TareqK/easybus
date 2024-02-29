@@ -1,6 +1,5 @@
 package me.kisoft.easybus.rabbitmq;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -21,9 +20,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.NonNull;
@@ -54,6 +54,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     private final Map<Class, ExecutorService> executorMap = new HashMap<>();
     private final Set<String> exchangeSet = new HashSet<>();
     private final ReentrantLock declarationLock = new ReentrantLock();
+    private final ScheduledExecutorService rebindingExecutor = Executors.newSingleThreadScheduledExecutor();
     
     @Builder.Default
     private final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
@@ -284,6 +285,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             };
             
             CancelCallback cancelCallback = (tag) -> {
+                log.warn("Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
                 tagMap.remove(eventClass);
                 channelMap.remove(eventClass);
                 Optional.ofNullable(executorMap.remove(eventClass)).ifPresent(item -> item.shutdown());
@@ -301,7 +303,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     log.warn("Consumer for Queue(Event) Listener {} was closed normally : {}", queueName, cause.getReason());
                 }
                 log.warn("Attempting to rebind Consumer for Queue(Event) Listener {}", queueName);
-                executor.submit(() -> {
+                rebindingExecutor.submit(() -> {
                     doAddListener(eventClass, listener, 1, maxRetries);
                 });
             };
@@ -317,14 +319,9 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             } catch (Exception ex) {
                 log.warn("Issue while attempting to close old channel for listener {} : {}", queueName, ex);
             }
-        } catch (IOException | TimeoutException ex) {
+        } catch (Exception ex) {
             log.warn("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex);
-            try {
-                Thread.sleep(retry * this.retryThresholdMillis);
-            } catch (InterruptedException e) {
-                log.info(e.getMessage());
-            }
-            doAddListener(eventClass, listener, (retry + 1), maxRetries);
+            rebindingExecutor.schedule(() -> doAddListener(eventClass, listener, (retry + 1), maxRetries), retry * this.retryThresholdMillis, TimeUnit.MILLISECONDS);
         }
     }
     
