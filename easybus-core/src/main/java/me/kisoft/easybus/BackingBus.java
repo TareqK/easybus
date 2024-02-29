@@ -33,7 +33,7 @@ public abstract class BackingBus implements AutoCloseable {
      * @param eventClass the class of the event to handle
      * @param listener the listener to add
      */
-    protected abstract void addHandler(Class eventClass, Listener listener);
+    protected abstract void addListener(Class eventClass, Listener listener);
 
     /**
      * Calls the listener with a specific event.

@@ -23,7 +23,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
+import lombok.Builder;
+import lombok.NonNull;
 import me.kisoft.easybus.BackingBus;
 import me.kisoft.easybus.memory.MemoryBackingBusImpl;
 import org.slf4j.Logger;
@@ -34,34 +37,38 @@ import me.kisoft.easybus.Listener;
  *
  * @author tareq
  */
+@Builder
 public class RabbitMQBackingBusImpl extends BackingBus {
-
+    
     protected static final Logger log = LoggerFactory.getLogger(RabbitMQBackingBusImpl.class);
-    protected final Connection connection;
-    protected final ObjectMapper mapper = new ObjectMapper()
+    
+    @NonNull
+    private final Connection connection;
+    @Builder.Default
+    private final ObjectMapper mapper = new ObjectMapper()
             .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-    protected final Map<Class, String> tagMap = new HashMap<>();
-    protected final Map<Class, Channel> channelMap = new HashMap<>();
-    protected final Map<Class, ExecutorService> executorMap = new HashMap<>();
-    protected final Set<String> exchangeList = new HashSet<>();
-    protected final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
-    protected final ReentrantLock declarationLock = new ReentrantLock();
-    protected final boolean allowUpdate;
-    protected final int maxPrefetch;
-    protected final boolean requeue;
-
-    public RabbitMQBackingBusImpl(Connection connection, boolean allowUpdate, int maxPrefetch, boolean requeue) {
-        this.connection = connection;
-        this.allowUpdate = allowUpdate;
-        this.maxPrefetch = maxPrefetch;
-        this.requeue = requeue;
-    }
-
-    public RabbitMQBackingBusImpl(Connection connection, boolean allowUpdate) {
-        this(connection, allowUpdate, 10, true);
-    }
-
+    
+    private final Map<Class, String> tagMap = new HashMap<>();
+    private final Map<Class, Channel> channelMap = new HashMap<>();
+    private final Map<Class, ExecutorService> executorMap = new HashMap<>();
+    private final Set<String> exchangeList = new HashSet<>();
+    
+    private final ReentrantLock declarationLock = new ReentrantLock();
+    
+    @Builder.Default
+    private final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
+    @Builder.Default
+    private final boolean allowUpdate = true;
+    @Builder.Default
+    private final int maxPrefetch = 10;
+    @Builder.Default
+    private final boolean requeue = true;
+    @Builder.Default
+    private final int retries = 3;
+    @Builder.Default
+    private final int retryThresholdMillis = 3000;
+    
     @Override
     public void post(Object object) {
         try (Channel channel = connection.createChannel()) {
@@ -74,7 +81,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             throw new RuntimeException(ex);
         }
     }
-
+    
     protected void verifyOrUpdateExchange(String exchangeName, BuiltinExchangeType type) throws IOException, TimeoutException {
         if (!exchangeList.contains(exchangeName)) {
             declarationLock.lock();
@@ -88,7 +95,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     } catch (IOException ex) {
                         exchangeExists = false;
                     }
-
+                    
                     boolean exchangeNeedsUpdate = false;
                     if (!exchangeExists) {
                         try (Channel creationChannel = connection.createChannel()) {
@@ -100,7 +107,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                             exchangeNeedsUpdate = true;
                         }
                     }
-
+                    
                     if (exchangeNeedsUpdate && allowUpdate) {
                         try (Channel updateChannel = connection.createChannel()) {
                             updateChannel.exchangeDelete(exchangeName, true);
@@ -114,25 +121,25 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             }
         }
     }
-
+    
     @Override
     public void clear() {
         clearTags();
         clearChannels();
         clearExecutors();
     }
-
+    
     @Override
     public void close() throws IOException {
         try (connection) {
             clear();
         }
     }
-
+    
     protected BuiltinExchangeType getExchangeType(Object object) {
         return getExchangeType(object.getClass());
     }
-
+    
     protected BuiltinExchangeType getExchangeType(Class clazz) {
         ExchangeType annotation = (ExchangeType) clazz.getAnnotation(ExchangeType.class);
         if (annotation == null || annotation.value() == null) {
@@ -140,11 +147,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
         return annotation.value();
     }
-
+    
     protected String getQueueName(Object object) {
         return getQueueName(object.getClass());
     }
-
+    
     protected String getQueueName(Class clazz) {
         QueueName queueName = (QueueName) clazz.getAnnotation(QueueName.class);
         if (queueName != null) {
@@ -152,11 +159,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
         return clazz.getSimpleName();
     }
-
+    
     protected String getExcahngeName(Object object) {
         return getExcahngeName(object.getClass());
     }
-
+    
     protected String getExcahngeName(Class clazz) {
         ExchangeName exchangeName = (ExchangeName) clazz.getAnnotation(ExchangeName.class);
         if (exchangeName != null) {
@@ -164,11 +171,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
         return clazz.getSimpleName();
     }
-
+    
     protected Set<String> getRoutingKeys(Object object) {
         return getRoutingKeys(object.getClass());
     }
-
+    
     protected Set<String> getRoutingKeys(Class clazz) {
         RoutingKey[] routingKeys = (RoutingKey[]) clazz.getAnnotationsByType(RoutingKey.class);
         if (routingKeys == null || routingKeys.length == 0) {
@@ -179,7 +186,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 .distinct()
                 .collect(Collectors.toSet());
     }
-
+    
     protected void clearChannels() {
         try {
             channelMap.values().forEach(usedChannel -> {
@@ -195,7 +202,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             channelMap.clear();
         }
     }
-
+    
     protected void clearTags() {
         try (Channel channel = connection.createChannel()) {
             tagMap.values().forEach(tag -> {
@@ -211,14 +218,19 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             tagMap.clear();
         }
     }
-
-    @Override
-    protected void addHandler(Class eventClass, Listener listener) {
+    
+    private void doAddListener(Class eventClass, Listener listener, int retry, int maxRetries) {
+        if (retry < 1 || maxRetries < 1) {
+            doAddListener(eventClass, listener, 1, 1);
+        }
+        if (retry > maxRetries) {
+            throw new RuntimeException("Too Many retries, could not add listener");
+        }
         String exchangeName = getExcahngeName(eventClass);
         BuiltinExchangeType type = getExchangeType(eventClass);
         String queueName = getQueueName(listener);
         Set<String> routingKeys = getRoutingKeys(listener);
-        ExecutorService executor = Executors.newFixedThreadPool(maxPrefetch < 1 ? 1 : maxPrefetch);
+        ExecutorService executor = executorMap.computeIfAbsent(eventClass, item -> Executors.newFixedThreadPool(maxPrefetch < 1 ? 1 : maxPrefetch));
         try {
             Channel channel = connection.createChannel();
             channel.basicQos(maxPrefetch, false);
@@ -229,7 +241,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             for (String routingKey : routingKeys) {
                 channel.queueBind(queue, exchangeName, routingKey);
             }
-
+            
             DeliverCallback deliverCallback = (consumerTag, delivery) -> {
                 final byte[] body = delivery.getBody();
                 final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
@@ -262,41 +274,57 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                         } else {
                             channel.basicNack(deliveryTag, false, requeue);
                         }
-
+                        
                     } catch (IOException ex) {
                         log.error("Exception when processing message from rabbitMQ : {}", ex);
                     }
                 });
             };
-
+            
             CancelCallback cancelCallback = (tag) -> {
                 tagMap.remove(eventClass);
                 channelMap.remove(eventClass);
                 Optional.ofNullable(executorMap.remove(eventClass)).ifPresent(item -> item.shutdown());
             };
-
+            
             ConsumerShutdownSignalCallback shutdownCallback = (tag, cause) -> {
+                log.warn(cause.getMessage());
                 if (cause.isHardError()) {
-                    log.error("Channel for Queue(Event) Listener {} was closed abnormaly : {}", queueName, cause);
+                    log.error("Consumer for Queue(Event) Listener {} was closed abnormaly : {}", queueName, cause.getReason());
                 } else {
-                    log.warn("Channel for Queue(Event) Listener {} was closed normally : {}", queueName, cause);
+                    log.warn("Consumer for Queue(Event) Listener {} was closed normally : {}", queueName, cause.getReason());
                 }
+                executor.submit(() -> {
+                    doAddListener(eventClass, listener, 1, maxRetries);
+                });
             };
-
-            memoryBusImpl.addHandler(eventClass, listener);
+            
+            memoryBusImpl.addListener(eventClass, listener);
             String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);
-            tagMap.put(eventClass, tag);
-            channelMap.put(eventClass, channel);
-            executorMap.put(eventClass, executor);
+            tagMap.replace(eventClass, tag);
+            Channel oldChannel = channelMap.replace(eventClass, channel);
+            if (oldChannel != null) {
+                oldChannel.close();
+            }
         } catch (IOException | TimeoutException ex) {
-            log.error("Failed to add listener {} : {}", listener, ex);
-            throw new RuntimeException(ex);
+            log.warn("Failed to add listener {} : {}, trying again", listener, ex);
+            try {
+                Thread.sleep(retry * this.retryThresholdMillis);
+            } catch (InterruptedException e) {
+                log.info(e.getMessage());
+            }
+            doAddListener(eventClass, listener, (retry + 1), maxRetries);
         }
     }
-
+    
+    @Override
+    protected void addListener(Class eventClass, Listener listener) {
+        doAddListener(eventClass, listener, 1, this.retries);
+    }
+    
     private void clearExecutors() {
         executorMap.values().stream().forEach(item -> item.shutdown());
         executorMap.clear();
     }
-
+    
 }

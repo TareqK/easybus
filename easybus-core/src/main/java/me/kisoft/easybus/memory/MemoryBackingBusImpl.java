@@ -30,7 +30,7 @@ public class MemoryBackingBusImpl extends BackingBus {
     }
 
     @Override
-    public void addHandler(Class eventClass, Listener listener) {
+    public void addListener(Class eventClass, Listener listener) {
         if (!handlerMap.containsKey(eventClass)) {
             handlerMap.put(eventClass, new HashSet<>());
         }

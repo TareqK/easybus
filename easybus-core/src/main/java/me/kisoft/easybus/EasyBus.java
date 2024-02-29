@@ -108,7 +108,7 @@ public class EasyBus {
                 }
                 Class eventClass = (Class) eventType;
 
-                backingBus.addHandler(eventClass, listener);
+                backingBus.addListener(eventClass, listener);
                 break;
             }
         }

@@ -43,8 +43,8 @@ public class RabbitMQBusImplTest {
         factory.setPassword("guest");
         Connection connection1 = factory.newConnection();
         Connection connection2 = factory.newConnection();
-        sendingBus = new EasyBus(new RabbitMQBackingBusImpl(connection1,true));
-        receivingBus = new EasyBus(new RabbitMQBackingBusImpl(connection2,true));
+        sendingBus = new EasyBus(RabbitMQBackingBusImpl.builder().connection(connection1).allowUpdate(true).build());
+        receivingBus = new EasyBus(RabbitMQBackingBusImpl.builder().connection(connection2).allowUpdate(true).build());
         receivingBus.register(RabbitMQNamedTestListener.class)
                 .register(RabbitMQTestListener.class)
                 .register(MultiHandlerTestListener.class);
