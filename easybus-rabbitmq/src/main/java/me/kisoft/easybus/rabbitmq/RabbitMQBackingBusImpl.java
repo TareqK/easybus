@@ -319,7 +319,6 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 channel.queueBind(queue, exchangeName, routingKey);
             }
             Consumer consumer = new RabbitMQBackingBusConsumer(channel, eventClass, eventListener);
-            channel.setDefaultConsumer(new DefaultConsumer(channel));
             channel.basicConsume(queueName, consumer);
             log.warn("Successfully added listener {} for event {} : attempt ({}/{})", eventListener, eventClass, retry, maxRetries);
         } catch (Throwable ex) {
