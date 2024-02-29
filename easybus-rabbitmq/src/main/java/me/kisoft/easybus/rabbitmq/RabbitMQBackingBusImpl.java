@@ -310,7 +310,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 oldChannel.close();
             }
         } catch (IOException | TimeoutException ex) {
-            log.info("Failed to add listener {} : {}, trying again", listener, ex);
+            log.info("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex);
             try {
                 Thread.sleep(retry * this.retryThresholdMillis);
             } catch (InterruptedException e) {
