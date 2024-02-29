@@ -4,10 +4,10 @@
     <parent>
         <groupId>me.kisoft</groupId>
         <artifactId>easybus-parent</artifactId>
-        <version>5.0.6</version>
+        <version>5.0.7</version>
     </parent>
     <artifactId>easybus-rabbitmq</artifactId>
-    <version>5.0.6</version>
+    <version>5.0.7</version>
     <packaging>jar</packaging>
     <name>Easybus RabbitMQ</name>
     <description>Simple, No Frills Event Bus for Java Backed by RabbitMQ</description>

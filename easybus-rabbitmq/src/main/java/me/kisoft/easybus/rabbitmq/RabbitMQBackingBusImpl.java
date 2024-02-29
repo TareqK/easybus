@@ -4,13 +4,17 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.BuiltinExchangeType;
 import com.rabbitmq.client.CancelCallback;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.Consumer;
 import com.rabbitmq.client.ConsumerShutdownSignalCallback;
 import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.DeliverCallback;
+import com.rabbitmq.client.Envelope;
+import com.rabbitmq.client.ShutdownSignalException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -24,6 +28,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.NonNull;
@@ -48,10 +53,6 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     private final ObjectMapper mapper = new ObjectMapper()
             .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-
-    private final Map<Class, String> tagMap = new HashMap<>();
-    private final Map<Class, Channel> channelMap = new HashMap<>();
-    private final Map<Class, ExecutorService> executorMap = new HashMap<>();
     private final Set<String> exchangeSet = new HashSet<>();
     private final ReentrantLock declarationLock = new ReentrantLock();
     private final ScheduledExecutorService rebindingExecutor = Executors.newSingleThreadScheduledExecutor();
@@ -124,16 +125,24 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
     @Override
     public void clear() {
-        clearTags();
-        clearChannels();
-        clearExecutors();
+        memoryBusImpl.clear();
+        try {
+            close();
+        } catch (Exception ex) {
+            log.warn("Failed to clear rabbitmq easybus  : {}", ex.getMessage());
+        }
+
     }
 
     @Override
-    public void close() throws IOException {
-        try (connection) {
-            clear();
+    public void close() throws Exception {
+        try {
+            memoryBusImpl.close();
+            connection.close();
+        } catch (Exception ex) {
+            throw ex;
         }
+
     }
 
     protected BuiltinExchangeType getExchangeType(Object object) {
@@ -187,161 +196,141 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 .collect(Collectors.toSet());
     }
 
-    protected void clearChannels() {
-        try {
-            channelMap.values().forEach(usedChannel -> {
+    protected class RabbitMQBackingBusConsumer extends DefaultConsumer {
+
+        private ExecutorService executor;
+        private final Class eventClass;
+        private final Listener eventListener;
+        private final String exchangeName;
+        private final String queueName;
+        private final ObjectReader reader;
+
+        public RabbitMQBackingBusConsumer(Channel channel, Class eventClass, Listener eventListener) {
+            super(channel);
+            this.eventClass = eventClass;
+            this.eventListener = eventListener;
+            this.exchangeName = getExcahngeName(eventClass);
+            this.queueName = getQueueName(eventListener);
+            this.reader = mapper.reader().forType(eventClass);
+        }
+
+        @Override
+        public void handleConsumeOk(String consumerTag) {
+            executor = Executors.newFixedThreadPool(maxPrefetch);
+            memoryBusImpl.addListener(eventClass, eventListener);//idempotent
+        }
+
+        @Override
+        public void handleCancel(String consumerTag) throws IOException {
+            log.warn("Forced Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
+            executor.shutdown();
+        }
+
+        @Override
+        public void handleCancelOk(String consumerTag) {
+            log.warn("Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
+            executor.shutdown();
+        }
+
+        @Override
+        public void handleShutdownSignal(String consumerTag, ShutdownSignalException sig) {
+            log.info("Consumer for Queue(Event) Listener {} was shutdown : {}", queueName, sig.getMessage());
+            if (sig.isInitiatedByApplication()) {
+                log.warn("Consumer for Queue(Event) Listener {} was shutdown permanently by applicaiton : {}", queueName, sig.getMessage());
+                return;
+            }
+            if (sig.isHardError()) {
+                log.warn("Consumer for Queue(Event) Listener {} was closed abnormaly : {}", queueName, sig.getReason());
+            } else {
+                log.warn("Consumer for Queue(Event) Listener {} was closed normally : {}", queueName, sig.getReason());
+            }
+            rebindingExecutor.schedule(() -> {
+                log.warn("Attempting to rebind Consumer for Queue(Event) Listener {}", queueName);
+                doAddListener(eventClass, eventListener, 1, retries);
+            }, retryThresholdMillis, TimeUnit.MILLISECONDS);
+        }
+
+        @Override
+        public void handleDelivery(String string, Envelope envlp, AMQP.BasicProperties bp, byte[] bytes) throws IOException {
+            final byte[] body = bytes;
+            final long deliveryTag = envlp.getDeliveryTag();
+            executor.submit(() -> {
+                boolean doAck = false;
+                log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
+                Object receivedEvent;
                 try {
-                    usedChannel.close();
-                } catch (IOException | TimeoutException ex) {
-                    log.warn("Failed to close channel {} : {}", usedChannel.getChannelNumber(), ex.getMessage());
+                    receivedEvent = reader.readValue(body);
+                } catch (Throwable ex) {
+                    log.warn("Error Decoding message from Exchange {}, class {} : {} ", exchangeName, eventClass, ex.getMessage());
+                    doAck = true;
+                    receivedEvent = null;
+                }
+                if (receivedEvent != null) {
+                    try {
+                        memoryBusImpl.post(receivedEvent);
+                        doAck = true;
+                    } catch (Throwable ex) {
+                        log.warn("Failure when processing event of type {}, Listener {} : {}", eventClass, eventListener, ex.getMessage());
+                        doAck = false;
+                    } finally {
+                        receivedEvent = null;
+                        log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
+                    }
+                }
+                try {
+                    if (doAck) {
+                        this.getChannel().basicAck(deliveryTag, false);
+                    } else {
+                        this.getChannel().basicNack(deliveryTag, false, requeue);
+                    }
+                } catch (IOException ex) {
+                    log.error("RabbitMQ Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
+                } catch (Throwable ex) {
+                    log.error("Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
                 }
             });
-        } catch (Exception ex) {
-            log.error(ex.getMessage());
-        } finally {
-            channelMap.clear();
         }
+
     }
 
-    protected void clearTags() {
-        tagMap.values().forEach(tag -> {
-            try (Channel channel = connection.createChannel()) {
-                try {
-                    channel.basicCancel(tag);
-                } catch (IOException ex) {
-                    log.warn("Failed to close tag {} : {}", tag, ex.getMessage());
-                }
-            } catch (IOException | TimeoutException ex) {
-                log.error(ex.getMessage());
-            }
-        });
-
-        tagMap.clear();
-    }
-
-    private void doAddListener(Class eventClass, Listener listener, int retry, int maxRetries) {
+    private void doAddListener(Class eventClass, Listener eventListener, int retry, int maxRetries) {
         if (retry < 1 || maxRetries < 1) {
-            rebindingExecutor.schedule(() -> doAddListener(eventClass, listener, 1, 1), 50, TimeUnit.MILLISECONDS);
+            rebindingExecutor.schedule(() -> doAddListener(eventClass, eventListener, 1, 1), 50, TimeUnit.MILLISECONDS);
             return;
         }
+
         if (retry > maxRetries) {
-            log.error("Failure to add listener {} for event {} : too many retries({}/{})", listener, eventClass, retry, maxRetries);
+            log.error("Failure to add listener {} for event {} : too many retries({}/{})", eventListener, eventClass, retry, maxRetries);
         }
+
         try {
-            log.warn("Attempting to add listener {} for event {} : attempt ({}/{})", listener, eventClass, retry, maxRetries);
+            log.warn("Attempting to add listener {} for event {} : attempt ({}/{})", eventListener, eventClass, retry, maxRetries);
             String exchangeName = getExcahngeName(eventClass);
             BuiltinExchangeType type = getExchangeType(eventClass);
-            String queueName = getQueueName(listener);
-            Set<String> routingKeys = getRoutingKeys(listener);
-            ExecutorService executor = executorMap.computeIfAbsent(eventClass, item -> Executors.newFixedThreadPool(maxPrefetch < 1 ? 1 : maxPrefetch));
+            String queueName = getQueueName(eventListener);
+            Set<String> routingKeys = getRoutingKeys(eventListener);
+
             Channel channel = connection.createChannel();
             channel.basicQos(maxPrefetch, false);
-            channel.setDefaultConsumer(new DefaultConsumer(channel));
-            ObjectReader reader = mapper.reader().forType(eventClass);
             verifyOrUpdateExchange(exchangeName, type);
             String queue = channel.queueDeclare(queueName, false, false, false, null).getQueue();
+
             for (String routingKey : routingKeys) {
                 channel.queueBind(queue, exchangeName, routingKey);
             }
-
-            DeliverCallback deliverCallback = (consumerTag, delivery) -> {
-                final byte[] body = delivery.getBody();
-                final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
-                executor.submit(() -> {
-                    boolean doAck = false;
-                    log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
-                    Object receivedEvent;
-                    try {
-                        receivedEvent = reader.readValue(body);
-                    } catch (Throwable ex) {
-                        log.warn("Error Decoding message from Exchange {}, class {} : {} ", exchangeName, eventClass, ex.getMessage());
-                        doAck = true;
-                        receivedEvent = null;
-                    }
-                    if (receivedEvent != null) {
-                        try {
-                            memoryBusImpl.post(receivedEvent);
-                            doAck = true;
-                        } catch (Throwable ex) {
-                            log.warn("Failure when processing event of type {}, Listener {} : {}", eventClass, listener, ex.getMessage());
-                            doAck = false;
-                        } finally {
-                            receivedEvent = null;
-                            log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
-                        }
-                    }
-                    try {
-                        if (doAck) {
-                            channel.basicAck(deliveryTag, false);
-                        } else {
-                            channel.basicNack(deliveryTag, false, requeue);
-                        }
-                    } catch (IOException ex) {
-                        log.error("RabbitMQ Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
-                    } catch (Throwable ex) {
-                        log.error("Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
-                    }
-                });
-            };
-
-            CancelCallback cancelCallback = (tag) -> {
-                log.warn("Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
-                tagMap.remove(eventClass);
-                channelMap.remove(eventClass);
-                Optional.ofNullable(executorMap.remove(eventClass)).ifPresent(item -> item.shutdown());
-            };
-
-            ConsumerShutdownSignalCallback shutdownCallback = (tag, cause) -> {
-                log.info("Consumer for Queue(Event) Listener {} was shutdown : {}", queueName, cause.getMessage());
-                if (cause.isInitiatedByApplication()) {
-                    log.warn("Consumer for Queue(Event) Listener {} was shutdown permanently by applicaiton : {}", queueName, cause.getMessage());
-                    return;
-                }
-                if (cause.isHardError()) {
-                    log.warn("Consumer for Queue(Event) Listener {} was closed abnormaly : {}", queueName, cause.getReason());
-                } else {
-                    log.warn("Consumer for Queue(Event) Listener {} was closed normally : {}", queueName, cause.getReason());
-                }
-                rebindingExecutor.schedule(() -> {
-                    log.warn("Attempting to rebind Consumer for Queue(Event) Listener {}", queueName);
-                    doAddListener(eventClass, listener, 1, maxRetries);
-                }, retryThresholdMillis, TimeUnit.MILLISECONDS);
-            };
-
-            memoryBusImpl.addListener(eventClass, listener);//idempotent
-            String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);//ignorable
-            tagMap.put(eventClass, tag);//idempotent
-            Channel oldChannel = channelMap.put(eventClass, channel);//safe
-
-            if (oldChannel != null && oldChannel.isOpen()) {
-                try {
-                    oldChannel.basicRecover(true);
-                } catch (Throwable ex) {
-                    log.warn("Issue while attempting to recover channel for listener {} : {}", queueName, ex.getMessage());
-
-                }
-                try {
-                    oldChannel.close();
-                } catch (Throwable ex) {
-                    log.warn("Issue while attempting to close old channel for listener {} : {}", queueName, ex.getMessage());
-                }
-            }
-            log.warn("Successfully added listener {} for event {} : attempt ({}/{})", listener, eventClass, retry, maxRetries);
-
+            Consumer consumer = new RabbitMQBackingBusConsumer(channel, eventClass, eventListener);
+            channel.setDefaultConsumer(new DefaultConsumer(channel));
+            channel.basicConsume(queueName, consumer);
+            log.warn("Successfully added listener {} for event {} : attempt ({}/{})", eventListener, eventClass, retry, maxRetries);
         } catch (Throwable ex) {
-            log.warn("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex.getMessage());
-            rebindingExecutor.schedule(() -> doAddListener(eventClass, listener, (retry + 1), maxRetries), retry * this.retryThresholdMillis, TimeUnit.MILLISECONDS);
+            log.warn("Failed to add listener {} for event {} : {}, trying again", eventListener, eventClass, ex.getMessage());
+            rebindingExecutor.schedule(() -> doAddListener(eventClass, eventListener, (retry + 1), maxRetries), retry * this.retryThresholdMillis, TimeUnit.MILLISECONDS);
         }
     }
 
     @Override
     protected void addListener(Class eventClass, Listener listener) {
         doAddListener(eventClass, listener, 1, this.retries);
-    }
-
-    private void clearExecutors() {
-        executorMap.values().stream().forEach(item -> item.shutdown());
-        executorMap.clear();
     }
 
 }
