@@ -276,7 +276,6 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                         } else {
                             channel.basicNack(deliveryTag, false, requeue);
                         }
-
                     } catch (IOException ex) {
                         log.error("RabbitMQ Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
                     } catch (Throwable ex) {
