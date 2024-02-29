@@ -226,7 +226,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             log.error("Failure to add listener {} for event {} : too many retries({}/{})", listener, eventClass, retry, maxRetries);
             throw new RuntimeException("Too Many retries, could not add listener");
         }
-        log.info("Attempting to add listener {} for event {} : attempt ({}/{})", listener, eventClass, retry, maxRetries);
+        log.warn("Attempting to add listener {} for event {} : attempt ({}/{})", listener, eventClass, retry, maxRetries);
 
         String exchangeName = getExcahngeName(eventClass);
         BuiltinExchangeType type = getExchangeType(eventClass);
@@ -291,12 +291,16 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
             ConsumerShutdownSignalCallback shutdownCallback = (tag, cause) -> {
                 log.info("Consumer for Queue(Event) Listener {} was shutdown : {}", queueName, cause.getMessage());
+                if (cause.isInitiatedByApplication()) {
+                    log.warn("Consumer for Queue(Event) Listener {} was shutdown permanently by applicaiton : {}", queueName, cause.getMessage());
+                    return;
+                }
                 if (cause.isHardError()) {
                     log.warn("Consumer for Queue(Event) Listener {} was closed abnormaly : {}", queueName, cause.getReason());
                 } else {
-                    log.info("Consumer for Queue(Event) Listener {} was closed normally : {}", queueName, cause.getReason());
+                    log.warn("Consumer for Queue(Event) Listener {} was closed normally : {}", queueName, cause.getReason());
                 }
-                log.info("Attempting to rebind Consumer for Queue(Event) Listener {}", queueName);
+                log.warn("Attempting to rebind Consumer for Queue(Event) Listener {}", queueName);
                 executor.submit(() -> {
                     doAddListener(eventClass, listener, 1, maxRetries);
                 });
@@ -314,7 +318,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 // no-op
             }
         } catch (IOException | TimeoutException ex) {
-            log.info("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex);
+            log.warn("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex);
             try {
                 Thread.sleep(retry * this.retryThresholdMillis);
             } catch (InterruptedException e) {
