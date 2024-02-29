@@ -312,20 +312,22 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);//ignorable
             tagMap.put(eventClass, tag);//idempotent
             Channel oldChannel = channelMap.put(eventClass, channel);//safe
-            try {
-                if (oldChannel != null && oldChannel.isOpen()) {
-                    oldChannel.close();
+
+            if (oldChannel != null && oldChannel.isOpen()) {
+                try {
+                    oldChannel.basicRecover(true);
+                } catch (Throwable ex) {
+                    log.warn("Issue while attempting to recover channel for listener {} : {}", queueName, ex.getMessage());
+
                 }
-            } catch (Throwable ex) {
-                log.warn("Issue while attempting to close old channel for listener {} : {}", queueName, ex.getMessage());
+                try {
+                    oldChannel.close();
+                } catch (Throwable ex) {
+                    log.warn("Issue while attempting to close old channel for listener {} : {}", queueName, ex.getMessage());
+                }
             }
+            log.warn("Successfully added listener {} for event {} : attempt ({}/{})", listener, eventClass, retry, maxRetries);
 
-            try {
-                channel.basicRecover(true);
-            } catch (Throwable ex) {
-                log.warn("Issue while attempting to recover channel for listener {} : {}", queueName, ex.getMessage());
-
-            }
         } catch (Throwable ex) {
             log.warn("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex.getMessage());
             rebindingExecutor.schedule(() -> doAddListener(eventClass, listener, (retry + 1), maxRetries), retry * this.retryThresholdMillis, TimeUnit.MILLISECONDS);
