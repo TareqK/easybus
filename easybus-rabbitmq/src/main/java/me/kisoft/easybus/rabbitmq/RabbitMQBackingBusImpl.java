@@ -226,7 +226,6 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
         if (retry > maxRetries) {
             log.error("Failure to add listener {} for event {} : too many retries({}/{})", listener, eventClass, retry, maxRetries);
-            throw new RuntimeException("Too Many retries, could not add listener");
         }
         log.warn("Attempting to add listener {} for event {} : attempt ({}/{})", listener, eventClass, retry, maxRetries);
 
