@@ -52,8 +52,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     private final Map<Class, String> tagMap = new HashMap<>();
     private final Map<Class, Channel> channelMap = new HashMap<>();
     private final Map<Class, ExecutorService> executorMap = new HashMap<>();
-    private final Set<String> exchangeList = new HashSet<>();
-
+    private final Set<String> exchangeSet = new HashSet<>();
     private final ReentrantLock declarationLock = new ReentrantLock();
 
     @Builder.Default
@@ -83,11 +82,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     }
 
     protected void verifyOrUpdateExchange(String exchangeName, BuiltinExchangeType type) throws IOException, TimeoutException {
-        if (!exchangeList.contains(exchangeName)) {
+        if (!exchangeSet.contains(exchangeName)) {
             declarationLock.lock();
             try {
                 boolean exchangeExists;
-                if (!exchangeList.contains(exchangeName)) {
+                if (!exchangeSet.contains(exchangeName)) {
                     try (Channel verificationChannel = connection.createChannel()) {
                         verificationChannel.exchangeDeclarePassive(exchangeName);
                         log.debug("Exchange {} already exists", exchangeName);
@@ -101,7 +100,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                         try (Channel creationChannel = connection.createChannel()) {
                             creationChannel.exchangeDeclare(exchangeName, type);
                             log.debug("Declared Exchange {}", exchangeName);
-                            exchangeList.add(exchangeName);
+                            exchangeSet.add(exchangeName);
                             exchangeNeedsUpdate = false;
                         } catch (IOException ex) {
                             exchangeNeedsUpdate = true;
@@ -112,7 +111,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                         try (Channel updateChannel = connection.createChannel()) {
                             updateChannel.exchangeDelete(exchangeName, true);
                             updateChannel.exchangeDeclare(exchangeName, type);
-                            exchangeList.add(exchangeName);
+                            exchangeSet.add(exchangeName);
                         }
                     }
                 }
@@ -250,7 +249,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
                 executor.submit(() -> {
                     boolean doAck = false;
-                    log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
+                    log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
                     Object receivedEvent;
                     try {
                         receivedEvent = reader.readValue(body);
@@ -268,7 +267,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                             doAck = false;
                         } finally {
                             receivedEvent = null;
-                            log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, delivery.getEnvelope().getDeliveryTag());
+                            log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
                         }
                     }
                     try {
@@ -279,7 +278,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                         }
 
                     } catch (IOException ex) {
-                        log.error("Exception when processing message from rabbitMQ : {}", ex);
+                        log.error("RabbitMQ Exception when processing Message from Exchange {} Queue {} with Delivery Tag {}: {}", exchangeName, queueName, deliveryTag, ex);
                     }
                 });
             };
@@ -291,21 +290,22 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             };
 
             ConsumerShutdownSignalCallback shutdownCallback = (tag, cause) -> {
-                log.warn(cause.getMessage());
+                log.info("Consumer for Queue(Event) Listener {} was shutdown : {}", queueName, cause.getMessage());
                 if (cause.isHardError()) {
                     log.warn("Consumer for Queue(Event) Listener {} was closed abnormaly : {}", queueName, cause.getReason());
                 } else {
                     log.info("Consumer for Queue(Event) Listener {} was closed normally : {}", queueName, cause.getReason());
                 }
+                log.info("Attempting to rebind Consumer for Queue(Event) Listener {}", queueName);
                 executor.submit(() -> {
                     doAddListener(eventClass, listener, 1, maxRetries);
                 });
             };
 
-            memoryBusImpl.addListener(eventClass, listener);
-            String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);
-            tagMap.replace(eventClass, tag);
-            Channel oldChannel = channelMap.replace(eventClass, channel);
+            memoryBusImpl.addListener(eventClass, listener);//idempotent
+            String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);//ignorable
+            tagMap.replace(eventClass, tag);//idempotent
+            Channel oldChannel = channelMap.replace(eventClass, channel);//safe
             if (oldChannel != null) {
                 oldChannel.close();
             }
