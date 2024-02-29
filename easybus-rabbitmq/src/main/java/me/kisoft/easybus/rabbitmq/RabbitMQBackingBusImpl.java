@@ -222,6 +222,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     private void doAddListener(Class eventClass, Listener listener, int retry, int maxRetries) {
         if (retry < 1 || maxRetries < 1) {
             rebindingExecutor.schedule(() -> doAddListener(eventClass, listener, 1, 1), 50, TimeUnit.MILLISECONDS);
+            return;
         }
         if (retry > maxRetries) {
             log.error("Failure to add listener {} for event {} : too many retries({}/{})", listener, eventClass, retry, maxRetries);
