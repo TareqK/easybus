@@ -39,23 +39,23 @@ import me.kisoft.easybus.Listener;
  */
 @Builder
 public class RabbitMQBackingBusImpl extends BackingBus {
-    
+
     protected static final Logger log = LoggerFactory.getLogger(RabbitMQBackingBusImpl.class);
-    
+
     @NonNull
     private final Connection connection;
     @Builder.Default
     private final ObjectMapper mapper = new ObjectMapper()
             .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-    
+
     private final Map<Class, String> tagMap = new HashMap<>();
     private final Map<Class, Channel> channelMap = new HashMap<>();
     private final Map<Class, ExecutorService> executorMap = new HashMap<>();
     private final Set<String> exchangeSet = new HashSet<>();
     private final ReentrantLock declarationLock = new ReentrantLock();
     private final ScheduledExecutorService rebindingExecutor = Executors.newSingleThreadScheduledExecutor();
-    
+
     @Builder.Default
     private final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
     @Builder.Default
@@ -68,7 +68,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     private final int retries = 3;
     @Builder.Default
     private final int retryThresholdMillis = 3000;
-    
+
     @Override
     public void post(Object object) {
         try (Channel channel = connection.createChannel()) {
@@ -81,7 +81,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             throw new RuntimeException(ex);
         }
     }
-    
+
     protected void verifyOrUpdateExchange(String exchangeName, BuiltinExchangeType type) throws IOException, TimeoutException {
         if (!exchangeSet.contains(exchangeName)) {
             declarationLock.lock();
@@ -95,7 +95,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     } catch (IOException ex) {
                         exchangeExists = false;
                     }
-                    
+
                     boolean exchangeNeedsUpdate = false;
                     if (!exchangeExists) {
                         try (Channel creationChannel = connection.createChannel()) {
@@ -107,7 +107,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                             exchangeNeedsUpdate = true;
                         }
                     }
-                    
+
                     if (exchangeNeedsUpdate && allowUpdate) {
                         try (Channel updateChannel = connection.createChannel()) {
                             updateChannel.exchangeDelete(exchangeName, true);
@@ -121,25 +121,25 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             }
         }
     }
-    
+
     @Override
     public void clear() {
         clearTags();
         clearChannels();
         clearExecutors();
     }
-    
+
     @Override
     public void close() throws IOException {
         try (connection) {
             clear();
         }
     }
-    
+
     protected BuiltinExchangeType getExchangeType(Object object) {
         return getExchangeType(object.getClass());
     }
-    
+
     protected BuiltinExchangeType getExchangeType(Class clazz) {
         ExchangeType annotation = (ExchangeType) clazz.getAnnotation(ExchangeType.class);
         if (annotation == null || annotation.value() == null) {
@@ -147,11 +147,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
         return annotation.value();
     }
-    
+
     protected String getQueueName(Object object) {
         return getQueueName(object.getClass());
     }
-    
+
     protected String getQueueName(Class clazz) {
         QueueName queueName = (QueueName) clazz.getAnnotation(QueueName.class);
         if (queueName != null) {
@@ -159,11 +159,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
         return clazz.getSimpleName();
     }
-    
+
     protected String getExcahngeName(Object object) {
         return getExcahngeName(object.getClass());
     }
-    
+
     protected String getExcahngeName(Class clazz) {
         ExchangeName exchangeName = (ExchangeName) clazz.getAnnotation(ExchangeName.class);
         if (exchangeName != null) {
@@ -171,11 +171,11 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         }
         return clazz.getSimpleName();
     }
-    
+
     protected Set<String> getRoutingKeys(Object object) {
         return getRoutingKeys(object.getClass());
     }
-    
+
     protected Set<String> getRoutingKeys(Class clazz) {
         RoutingKey[] routingKeys = (RoutingKey[]) clazz.getAnnotationsByType(RoutingKey.class);
         if (routingKeys == null || routingKeys.length == 0) {
@@ -186,7 +186,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 .distinct()
                 .collect(Collectors.toSet());
     }
-    
+
     protected void clearChannels() {
         try {
             channelMap.values().forEach(usedChannel -> {
@@ -202,7 +202,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             channelMap.clear();
         }
     }
-    
+
     protected void clearTags() {
         try (Channel channel = connection.createChannel()) {
             tagMap.values().forEach(tag -> {
@@ -218,17 +218,17 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             tagMap.clear();
         }
     }
-    
+
     private void doAddListener(Class eventClass, Listener listener, int retry, int maxRetries) {
         if (retry < 1 || maxRetries < 1) {
-            doAddListener(eventClass, listener, 1, 1);
+            rebindingExecutor.submit(() -> doAddListener(eventClass, listener, 1, 1));
         }
         if (retry > maxRetries) {
             log.error("Failure to add listener {} for event {} : too many retries({}/{})", listener, eventClass, retry, maxRetries);
             throw new RuntimeException("Too Many retries, could not add listener");
         }
         log.warn("Attempting to add listener {} for event {} : attempt ({}/{})", listener, eventClass, retry, maxRetries);
-        
+
         String exchangeName = getExcahngeName(eventClass);
         BuiltinExchangeType type = getExchangeType(eventClass);
         String queueName = getQueueName(listener);
@@ -244,7 +244,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             for (String routingKey : routingKeys) {
                 channel.queueBind(queue, exchangeName, routingKey);
             }
-            
+
             DeliverCallback deliverCallback = (consumerTag, delivery) -> {
                 final byte[] body = delivery.getBody();
                 final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
@@ -254,7 +254,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     Object receivedEvent;
                     try {
                         receivedEvent = reader.readValue(body);
-                    } catch (IOException ex) {
+                    } catch (Throwable ex) {
                         log.warn("Error Decoding message from Exchange {}, class {}: {} ", exchangeName, eventClass, ex);
                         doAck = true;
                         receivedEvent = null;
@@ -264,7 +264,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                             memoryBusImpl.post(receivedEvent);
                             doAck = true;
                         } catch (Throwable ex) {
-                            log.info("Failure when processing event of type {}, Listener {} : {}", eventClass, listener, ex);
+                            log.warn("Failure when processing event of type {}, Listener {} : {}", eventClass, listener, ex);
                             doAck = false;
                         } finally {
                             receivedEvent = null;
@@ -277,20 +277,20 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                         } else {
                             channel.basicNack(deliveryTag, false, requeue);
                         }
-                        
-                    } catch (IOException ex) {
+
+                    } catch (Throwable ex) {
                         log.error("RabbitMQ Exception when processing Message from Exchange {} Queue {} with Delivery Tag {}: {}", exchangeName, queueName, deliveryTag, ex);
                     }
                 });
             };
-            
+
             CancelCallback cancelCallback = (tag) -> {
                 log.warn("Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
                 tagMap.remove(eventClass);
                 channelMap.remove(eventClass);
                 Optional.ofNullable(executorMap.remove(eventClass)).ifPresent(item -> item.shutdown());
             };
-            
+
             ConsumerShutdownSignalCallback shutdownCallback = (tag, cause) -> {
                 log.info("Consumer for Queue(Event) Listener {} was shutdown : {}", queueName, cause.getMessage());
                 if (cause.isInitiatedByApplication()) {
@@ -307,7 +307,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     doAddListener(eventClass, listener, 1, maxRetries);
                 });
             };
-            
+
             memoryBusImpl.addListener(eventClass, listener);//idempotent
             String tag = channel.basicConsume(queueName, deliverCallback, cancelCallback, shutdownCallback);//ignorable
             tagMap.put(eventClass, tag);//idempotent
@@ -316,23 +316,30 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 if (oldChannel != null) {
                     oldChannel.close();
                 }
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 log.warn("Issue while attempting to close old channel for listener {} : {}", queueName, ex);
             }
-        } catch (Exception ex) {
+
+            try {
+                channel.basicRecover(true);
+            } catch (Throwable ex) {
+                log.warn("Issue while attempting to recover channel for listener {} : {}", queueName, ex);
+
+            }
+        } catch (Throwable ex) {
             log.warn("Failed to add listener {} for event {} : {}, trying again", listener, eventClass, ex);
             rebindingExecutor.schedule(() -> doAddListener(eventClass, listener, (retry + 1), maxRetries), retry * this.retryThresholdMillis, TimeUnit.MILLISECONDS);
         }
     }
-    
+
     @Override
     protected void addListener(Class eventClass, Listener listener) {
         doAddListener(eventClass, listener, 1, this.retries);
     }
-    
+
     private void clearExecutors() {
         executorMap.values().stream().forEach(item -> item.shutdown());
         executorMap.clear();
     }
-    
+
 }
