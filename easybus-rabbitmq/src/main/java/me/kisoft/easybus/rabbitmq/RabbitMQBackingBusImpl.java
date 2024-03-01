@@ -6,21 +6,15 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.BuiltinExchangeType;
-import com.rabbitmq.client.CancelCallback;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.Consumer;
-import com.rabbitmq.client.ConsumerShutdownSignalCallback;
 import com.rabbitmq.client.DefaultConsumer;
-import com.rabbitmq.client.DeliverCallback;
 import com.rabbitmq.client.Envelope;
 import com.rabbitmq.client.ShutdownSignalException;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,7 +22,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.NonNull;
@@ -126,12 +119,6 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     @Override
     public void clear() {
         memoryBusImpl.clear();
-        try {
-            close();
-        } catch (Exception ex) {
-            log.warn("Failed to clear rabbitmq easybus  : {}", ex.getMessage());
-        }
-
     }
 
     @Override
@@ -229,12 +216,19 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         @Override
         public void handleCancelOk(String consumerTag) {
             log.warn("Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
-            executor.shutdown();
+            if (this.getChannel().isOpen()) {
+                try {
+                    this.getChannel().close();
+                } catch (IOException | TimeoutException ex) {
+                    log.error("Exception while attempting to close consumer : {}", ex.getMessage());
+                }
+            }
         }
 
         @Override
         public void handleShutdownSignal(String consumerTag, ShutdownSignalException sig) {
             log.info("Consumer for Queue(Event) Listener {} was shutdown : {}", queueName, sig.getMessage());
+            executor.shutdown();
             if (sig.isInitiatedByApplication()) {
                 log.warn("Consumer for Queue(Event) Listener {} was shutdown permanently by applicaiton : {}", queueName, sig.getMessage());
                 return;
