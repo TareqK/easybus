@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.NonNull;
@@ -52,7 +51,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private final Set<String> exchangeSet = new HashSet<>();
     private final ReentrantLock declarationLock = new ReentrantLock();
-    private final ScheduledExecutorService rebindingExecutor = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService rebindingExecutor = Executors.newSingleThreadScheduledExecutor((r) -> new Thread(r, "rabbitmq-binding-pool"));
 
     @Builder.Default
     private final MemoryBackingBusImpl memoryBusImpl = new MemoryBackingBusImpl();
