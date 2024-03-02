@@ -245,7 +245,12 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         @Override
         public void handleCancel(String consumerTag) throws IOException {
             log.warn("Force Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
-            executor.shutdown();
+            executor.shutdownNow();
+            try {
+                executor.awaitTermination(retryThresholdMillis * retries, TimeUnit.MILLISECONDS);//best effort
+            } catch (InterruptedException ex) {
+                log.warn("Exception while awaiting excutor termination : {} ", ex.getMessage());
+            }
             log.warn("Force Cancelled Consumer for Listener {} , event {}", queueName, exchangeName);
         }
 
