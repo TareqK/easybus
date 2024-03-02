@@ -230,15 +230,13 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             this.exchangeName = getExcahngeName(eventClass);
             this.queueName = getQueueName(eventListener);
             this.reader = mapper.reader().forType(eventClass);
+             executor = Executors.newFixedThreadPool(maxPrefetch, new NamedIngestorThreadFactory(String.format("queue-%s", queueName)));
+            memoryBusImpl.addListener(eventClass, eventListener);//idempotent
         }
 
         @Override
-        public void handleConsumeOk(String consumerTag) {
-            log.info("Adding Consumer {} for Queue {} exchange {}", consumerTag, queueName, exchangeName);
-            executor = Executors.newFixedThreadPool(maxPrefetch, new NamedIngestorThreadFactory(String.format("queue-%s", queueName)));
-            memoryBusImpl.addListener(eventClass, eventListener);//idempotent
+        public void handleConsumeOk(String consumerTag) {           
             log.info("Added Consumer {} for Queue {} exchange {}", consumerTag, queueName, exchangeName);
-
         }
 
         @Override
@@ -330,7 +328,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                         log.error("Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
                     }
                 });
-            } catch (RejectedExecutionException ex) {
+            } catch (Exception ex) {
                 log.warn("Could not schedule message for processing : {}", ex.getMessage());
                 this.getChannel().basicNack(deliveryTag, false, true);
             }
