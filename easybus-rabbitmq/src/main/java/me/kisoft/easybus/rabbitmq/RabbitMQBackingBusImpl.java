@@ -234,14 +234,18 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
         @Override
         public void handleConsumeOk(String consumerTag) {
+            log.info("Adding Consumer {} for Queue {} exchange {}", consumerTag, queueName, exchangeName);
             executor = Executors.newFixedThreadPool(maxPrefetch, new NamedIngestorThreadFactory(String.format("queue-%s", queueName)));
             memoryBusImpl.addListener(eventClass, eventListener);//idempotent
+            log.info("Added Consumer {} for Queue {} exchange {}", consumerTag, queueName, exchangeName);
+
         }
 
         @Override
         public void handleCancel(String consumerTag) throws IOException {
-            log.warn("Forced Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
+            log.warn("Force Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
             executor.shutdown();
+            log.warn("Force Cancelled Consumer for Listener {} , event {}", queueName, exchangeName);
         }
 
         @Override
@@ -254,6 +258,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                     log.error("Exception while attempting to close consumer : {}", ex.getMessage());
                 }
             }
+            log.warn("Cancelled Consumer for Listener {} , event {}", queueName, exchangeName);
         }
 
         @Override
@@ -324,6 +329,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     }
 
     private void doAddListener(Class eventClass, Listener eventListener, int retry, int maxRetries) {
+
         if (retry < 1 || maxRetries < 1) {
             rebindingExecutor.schedule(() -> doAddListener(eventClass, eventListener, 1, 1), 50, TimeUnit.MILLISECONDS);
             return;
