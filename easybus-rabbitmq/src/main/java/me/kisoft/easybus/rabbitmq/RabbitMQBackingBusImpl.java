@@ -216,7 +216,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
     protected class RabbitMQBackingBusConsumer extends DefaultConsumer {
 
-        private ExecutorService executor;
+        private final ExecutorService executor;
         private final Class eventClass;
         private final Listener eventListener;
         private final String exchangeName;
@@ -230,12 +230,12 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             this.exchangeName = getExcahngeName(eventClass);
             this.queueName = getQueueName(eventListener);
             this.reader = mapper.reader().forType(eventClass);
-             executor = Executors.newFixedThreadPool(maxPrefetch, new NamedIngestorThreadFactory(String.format("queue-%s", queueName)));
+            executor = Executors.newFixedThreadPool(maxPrefetch, new NamedIngestorThreadFactory(String.format("queue-%s", queueName)));
             memoryBusImpl.addListener(eventClass, eventListener);//idempotent
         }
 
         @Override
-        public void handleConsumeOk(String consumerTag) {           
+        public void handleConsumeOk(String consumerTag) {
             log.info("Added Consumer {} for Queue {} exchange {}", consumerTag, queueName, exchangeName);
         }
 
