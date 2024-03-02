@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.NonNull;
@@ -264,15 +265,20 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         @Override
         public void handleShutdownSignal(String consumerTag, ShutdownSignalException sig) {
             log.info("Consumer for Queue(Event) Listener {} was shutdown : {}", queueName, sig.getMessage());
-            executor.shutdown();
-            if (sig.isInitiatedByApplication()) {
-                log.warn("Consumer for Queue(Event) Listener {} was shutdown permanently by applicaiton : {}", queueName, sig.getMessage());
-                return;
-            }
+            executor.shutdownNow();
             if (sig.isHardError()) {
                 log.warn("Consumer for Queue(Event) Listener {} was closed abnormaly : {}", queueName, sig.getReason());
             } else {
                 log.warn("Consumer for Queue(Event) Listener {} was closed normally : {}", queueName, sig.getReason());
+            }
+            try {
+                executor.awaitTermination(retryThresholdMillis * retries, TimeUnit.MILLISECONDS);//best effort
+            } catch (InterruptedException ex) {
+                log.warn("Exception while awaiting excutor termination : {} ", ex.getMessage());
+            }
+            if (sig.isInitiatedByApplication()) {
+                log.warn("Consumer for Queue(Event) Listener {} was shutdown permanently by applicaiton : {}", queueName, sig.getMessage());
+                return;
             }
             rebindingExecutor.schedule(() -> {
                 log.warn("Attempting to rebind Consumer for Queue(Event) Listener {}", queueName);
