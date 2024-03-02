@@ -18,9 +18,12 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import lombok.Builder;
@@ -183,6 +186,34 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                 .collect(Collectors.toSet());
     }
 
+    protected static class NamedIngestorThreadFactory implements ThreadFactory {
+
+        private AtomicInteger threadNumber = new AtomicInteger(1);
+        private static AtomicInteger poolNumber = new AtomicInteger(1);
+        private final String namePrefix;
+        private final int pool;
+
+        /**
+         * Constructor accepting the prefix of the threads that will be created
+         * by this {@link ThreadFactory}
+         *
+         * @param namePrefix Prefix for names of threads
+         */
+        public NamedIngestorThreadFactory(String namePrefix) {
+            this.namePrefix = namePrefix;
+            this.pool = poolNumber.getAndIncrement();
+        }
+
+        /**
+         * Returns a new thread using a name as specified by this factory
+         * {@inheritDoc}
+         */
+        @Override
+        public Thread newThread(Runnable runnable) {
+            return new Thread(runnable, String.format("%s pool-%s ingestor-%s", namePrefix, pool, threadNumber.getAndIncrement()));
+        }
+    }
+
     protected class RabbitMQBackingBusConsumer extends DefaultConsumer {
 
         private ExecutorService executor;
@@ -203,7 +234,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
         @Override
         public void handleConsumeOk(String consumerTag) {
-            executor = Executors.newFixedThreadPool(maxPrefetch);
+            executor = Executors.newFixedThreadPool(maxPrefetch, new NamedIngestorThreadFactory(String.format("queue-%s", queueName)));
             memoryBusImpl.addListener(eventClass, eventListener);//idempotent
         }
 
@@ -248,41 +279,46 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         public void handleDelivery(String string, Envelope envlp, AMQP.BasicProperties bp, byte[] bytes) throws IOException {
             final byte[] body = bytes;
             final long deliveryTag = envlp.getDeliveryTag();
-            executor.submit(() -> {
-                boolean doAck = false;
-                log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
-                Object receivedEvent;
-                try {
-                    receivedEvent = reader.readValue(body);
-                } catch (Throwable ex) {
-                    log.warn("Error Decoding message from Exchange {}, class {} : {} ", exchangeName, eventClass, ex.getMessage());
-                    doAck = true;
-                    receivedEvent = null;
-                }
-                if (receivedEvent != null) {
+            try {
+                executor.submit(() -> {
+                    boolean doAck = false;
+                    log.trace("Received Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
+                    Object receivedEvent;
                     try {
-                        memoryBusImpl.post(receivedEvent);
-                        doAck = true;
+                        receivedEvent = reader.readValue(body);
                     } catch (Throwable ex) {
-                        log.warn("Failure when processing event of type {}, Listener {} : {}", eventClass, eventListener, ex.getMessage());
-                        doAck = false;
-                    } finally {
+                        log.warn("Error Decoding message from Exchange {}, class {} : {} ", exchangeName, eventClass, ex.getMessage());
+                        doAck = true;
                         receivedEvent = null;
-                        log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
                     }
-                }
-                try {
-                    if (doAck) {
-                        this.getChannel().basicAck(deliveryTag, false);
-                    } else {
-                        this.getChannel().basicNack(deliveryTag, false, requeue);
+                    if (receivedEvent != null) {
+                        try {
+                            memoryBusImpl.post(receivedEvent);
+                            doAck = true;
+                        } catch (Throwable ex) {
+                            log.warn("Failure when processing event of type {}, Listener {} : {}", eventClass, eventListener, ex.getMessage());
+                            doAck = false;
+                        } finally {
+                            receivedEvent = null;
+                            log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
+                        }
                     }
-                } catch (IOException ex) {
-                    log.error("RabbitMQ Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
-                } catch (Throwable ex) {
-                    log.error("Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
-                }
-            });
+                    try {
+                        if (doAck) {
+                            this.getChannel().basicAck(deliveryTag, false);
+                        } else {
+                            this.getChannel().basicNack(deliveryTag, false, requeue);
+                        }
+                    } catch (IOException ex) {
+                        log.error("RabbitMQ Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
+                    } catch (Throwable ex) {
+                        log.error("Exception when processing Message from Exchange {} Queue {} with Delivery Tag {} : {}", exchangeName, queueName, deliveryTag, ex.getMessage());
+                    }
+                });
+            } catch (RejectedExecutionException ex) {
+                log.warn("Could not schedule message for processing : {}", ex.getMessage());
+                this.getChannel().basicNack(deliveryTag, false, true);
+            }
         }
 
     }
