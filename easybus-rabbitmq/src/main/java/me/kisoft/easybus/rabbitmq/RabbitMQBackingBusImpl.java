@@ -222,6 +222,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
         private final String exchangeName;
         private final String queueName;
         private final ObjectReader reader;
+        private boolean shutdown = false;
 
         public RabbitMQBackingBusConsumer(Channel channel, Class eventClass, Listener eventListener) {
             super(channel);
@@ -230,17 +231,20 @@ public class RabbitMQBackingBusImpl extends BackingBus {
             this.exchangeName = getExcahngeName(eventClass);
             this.queueName = getQueueName(eventListener);
             this.reader = mapper.reader().forType(eventClass);
-            executor = Executors.newFixedThreadPool(maxPrefetch, new NamedIngestorThreadFactory(String.format("queue-%s", queueName)));
+            this.executor = Executors.newFixedThreadPool(maxPrefetch, new NamedIngestorThreadFactory(String.format("queue-%s", queueName)));
             memoryBusImpl.addListener(eventClass, eventListener);//idempotent
+            this.shutdown = false;
         }
 
         @Override
         public void handleConsumeOk(String consumerTag) {
             log.info("Added Consumer {} for Queue {} exchange {}", consumerTag, queueName, exchangeName);
+            this.shutdown = false;
         }
 
         @Override
         public void handleCancel(String consumerTag) throws IOException {
+            this.shutdown = true;
             log.warn("Force Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
             executor.shutdownNow();
             try {
@@ -253,6 +257,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
         @Override
         public void handleCancelOk(String consumerTag) {
+            this.shutdown = true;
             log.warn("Cancelling Consumer for Listener {} , event {}", queueName, exchangeName);
             if (this.getChannel().isOpen()) {
                 try {
@@ -266,6 +271,7 @@ public class RabbitMQBackingBusImpl extends BackingBus {
 
         @Override
         public void handleShutdownSignal(String consumerTag, ShutdownSignalException sig) {
+            this.shutdown = true;
             log.info("Consumer for Queue(Event) Listener {} was shutdown : {}", queueName, sig.getMessage());
             executor.shutdownNow();
             if (sig.isHardError()) {
@@ -315,6 +321,10 @@ public class RabbitMQBackingBusImpl extends BackingBus {
                             receivedEvent = null;
                             log.trace("Finished Receiving Message from Exchange {} Queue {} with Delivery Tag {}", exchangeName, queueName, deliveryTag);
                         }
+                    }
+                    if (this.shutdown) {
+                        log.info("Consumer is already shutdown; skipping ackgnowledgement");
+                        return;
                     }
                     try {
                         if (doAck) {
