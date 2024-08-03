@@ -4,38 +4,26 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.rabbitmq.client.AMQP;
-import com.rabbitmq.client.BuiltinExchangeType;
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.Consumer;
-import com.rabbitmq.client.DefaultConsumer;
-import com.rabbitmq.client.Envelope;
-import com.rabbitmq.client.ShutdownSignalException;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.rabbitmq.client.*;
+import lombok.Builder;
+import lombok.NonNull;
+import me.kisoft.easybus.BackingBus;
+import me.kisoft.easybus.Listener;
+import me.kisoft.easybus.memory.MemoryBackingBusImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
-import lombok.Builder;
-import lombok.NonNull;
-import me.kisoft.easybus.BackingBus;
-import me.kisoft.easybus.memory.MemoryBackingBusImpl;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import me.kisoft.easybus.Listener;
 
 /**
- *
  * @author tareq
  */
 @Builder
@@ -48,7 +36,8 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     @Builder.Default
     private final ObjectMapper mapper = new ObjectMapper()
             .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
-            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .registerModule(new JavaTimeModule());
     private final Set<String> exchangeSet = new HashSet<>();
     private final ReentrantLock declarationLock = new ReentrantLock();
     private final ScheduledExecutorService rebindingExecutor = Executors.newSingleThreadScheduledExecutor((r) -> new Thread(r, "rabbitmq-binding-pool"));
@@ -385,5 +374,4 @@ public class RabbitMQBackingBusImpl extends BackingBus {
     protected void addListener(Class eventClass, Listener listener) {
         doAddListener(eventClass, listener, 1, this.retries);
     }
-
 }

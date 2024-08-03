@@ -3,23 +3,16 @@ package me.kisoft.easybus.test;
 import me.kisoft.easybus.EasyBus;
 import me.kisoft.easybus.EasyBus.ActivationFailureException;
 import me.kisoft.easybus.memory.MemoryBackingBusImpl;
-import me.kisoft.easybus.test.events.TestChildClassEvent;
-import me.kisoft.easybus.test.events.TestParentClassEvent;
-import me.kisoft.easybus.test.events.TestSyncEvent;
-import me.kisoft.easybus.test.events.TestAsyncEvent;
-import me.kisoft.easybus.test.events.TestNotHandledEvent;
-import me.kisoft.easybus.test.handlers.TestAsyncEventListener;
-import me.kisoft.easybus.test.handlers.TestChildClassEventListener;
-import me.kisoft.easybus.test.handlers.TestParentClassEventListener;
-import me.kisoft.easybus.test.handlers.TestSyncEventListener;
-import me.kisoft.easybus.test.handlers.TestSyncEventListener2;
-import me.kisoft.easybus.test.handlers.UnactivatableListener;
-import static org.junit.Assert.assertEquals;
+import me.kisoft.easybus.test.events.*;
+import me.kisoft.easybus.test.handlers.*;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.time.ZonedDateTime;
+
+import static org.junit.Assert.assertEquals;
+
 /**
- *
  * @author tareq
  */
 public class EasyBusTest {
@@ -32,7 +25,6 @@ public class EasyBusTest {
         memBus = new MemoryBackingBusImpl();
         bus = new EasyBus(memBus);
         bus.clear();
-
     }
 
     @Test
@@ -117,4 +109,16 @@ public class EasyBusTest {
         assertEquals(TestNotHandledEvent.checked, true);
     }
 
+    @Test
+    public void testDateTimeEventHandling() {
+        ZonedDateTime now = ZonedDateTime.now();
+        ZonedDateTime nowPlusDay = ZonedDateTime.now().plusDays(1);
+        bus.register(TestDateTimeEventListener.class);
+
+        bus.post(new TestDateTimeEvent(now));
+        assertEquals(TestDateTimeEvent.eventDateTime, now);
+
+        bus.post(new TestDateTimeEvent(nowPlusDay));
+        assertEquals(TestDateTimeEvent.eventDateTime, nowPlusDay);
+    }
 }
