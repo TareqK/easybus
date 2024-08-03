@@ -4,10 +4,10 @@
     <parent>
         <groupId>me.kisoft</groupId>
         <artifactId>easybus-parent</artifactId>
-        <version>5.0.13</version>
+        <version>5.2.0</version>
     </parent>
     <artifactId>easybus-rabbitmq</artifactId>
-    <version>5.0.13</version>
+    <version>5.2.0</version>
     <packaging>jar</packaging>
     <name>Easybus RabbitMQ</name>
     <description>Simple, No Frills Event Bus for Java Backed by RabbitMQ</description>
@@ -56,5 +56,11 @@
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j-api.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
     </dependencies>
 </project>

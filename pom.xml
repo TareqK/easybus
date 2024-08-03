@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>me.kisoft</groupId>
     <artifactId>easybus-parent</artifactId>
-    <version>5.0.13</version>
+    <version>5.2.0</version>
     <name>EasyBus</name>
     <packaging>pom</packaging>
     <properties>
@@ -21,6 +21,7 @@
         <gpg.plugin.version>1.5</gpg.plugin.version>
         <source.plugin.version>2.2.1</source.plugin.version>
         <javadoc.plugin.version>3.1.1</javadoc.plugin.version>
+        <jackson.version>2.17.2</jackson.version>
     </properties>
     <modules>
         <module>easybus-core</module>
