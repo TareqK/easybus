@@ -12,7 +12,7 @@
     <name>Easybus RabbitMQ</name>
     <description>Simple, No Frills Event Bus for Java Backed by RabbitMQ</description>
     <properties>
-        <rabbitmq.client.version>5.20.0</rabbitmq.client.version>
+        <rabbitmq.client.version>5.33.1</rabbitmq.client.version>
     </properties>
     <dependencies>
         <dependency>
